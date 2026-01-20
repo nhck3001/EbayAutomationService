@@ -47,7 +47,7 @@ class Program
         //await offerService.updateOffer("10592561010", fulfillmentPolicyId, paymentPolicyId, returnPolicyId, merchangeLocationKey);
         //await offerService.publishOffer("10592561010");
         //var x = await offerService.getOffers("1");
-        await accountService.getOptedInPrograms();
+        var x = await accountService.getOptedInPrograms();
     }   
 }
 

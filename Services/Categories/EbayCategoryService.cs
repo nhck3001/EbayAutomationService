@@ -47,7 +47,7 @@ public class EbayCategoryService
         {
             throw new HttpRequestException($"eBay API request failed with status code {response.StatusCode}. Response: {response.Content}", null, response.StatusCode);
         }
-        var treeID = Newtonsoft.Json.Linq.JObject.Parse(responseJson)["categorySuggestions"][1]["category"]["categoryId"]?.ToString();
+        var treeID = JObject.Parse(responseJson)["categorySuggestions"][1]["category"]["categoryId"]?.ToString();
         return treeID ?? throw new Exception("No categoryId returned.");
     }
 }

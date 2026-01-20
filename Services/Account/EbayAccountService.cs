@@ -28,8 +28,7 @@ public class EbayAccountService
 
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.sandbox.ebay.com/sell/account/v1/program/opt_in");
         var json = JsonConvert.SerializeObject(body);
-        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-        var response = await _api.SendAsync(request, true);
+        var response = await _api.SendAsync(request, json,true);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -48,7 +47,7 @@ public class EbayAccountService
     /// </summary>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task getOptedInPrograms()
+    public async Task<List<string>> getOptedInPrograms()
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://api.sandbox.ebay.com/sell/account/v1/program/get_opted_in_programs");
 
@@ -66,7 +65,7 @@ public class EbayAccountService
             );
         }
         
-        return JObject.Parse(json)["programs"]
+        return JObject.Parse(responseJson)["programs"]
             .Select(p => p["programType"]?.ToString())
             .Where(p => !string.IsNullOrEmpty(p))
             .ToList();

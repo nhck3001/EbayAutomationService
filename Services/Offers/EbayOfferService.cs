@@ -29,7 +29,7 @@ public class EbayOfferService
 
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.sandbox.ebay.com/sell/inventory/v1/offer");
         request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-        var response = await _api.SendAsync(request,true);
+        var response = await _api.SendAsync(request, jsonBody, true);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -81,8 +81,7 @@ public class EbayOfferService
 
 
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, $"https://api.sandbox.ebay.com/sell/inventory/v1/offer/{offerID}");
-        request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-        var response = await _api.SendAsync(request,true);
+        var response = await _api.SendAsync(request,jsonBody, true);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)

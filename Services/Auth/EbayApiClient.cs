@@ -26,7 +26,7 @@ public class EbayApiClient
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, bool settingHeaderContentLanguage = false)
+    public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, string json = null, bool settingHeaderContentLanguage = false)
     {
         var token = await _tokenManager.GetValidTokenAsync();
         // Setting up headers
@@ -34,6 +34,7 @@ public class EbayApiClient
         if (settingHeaderContentLanguage)
         {
             request.Content!.Headers.Add("Content-Language", "en-US");
+            request.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
         }
         var response = await _client.SendAsync(request);

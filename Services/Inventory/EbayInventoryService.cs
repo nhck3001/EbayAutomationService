@@ -3,6 +3,7 @@ using EbayAutomationService.Services;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
+// This class is used to talk to the Inventory API
 public class EbayInventoryService
 {
     private readonly EbayApiClient _api;
@@ -38,8 +39,7 @@ public class EbayInventoryService
 
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, "https://api.sandbox.ebay.com/sell/inventory/v1/inventory_item/" + sku);
         var json = JsonConvert.SerializeObject(body);
-        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-        var response = await _api.SendAsync(request, true);
+        var response = await _api.SendAsync(request, json, true);
 
         if (!response.IsSuccessStatusCode)
         {
@@ -142,9 +142,7 @@ public class EbayInventoryService
             locationTypes = new[] { "WAREHOUSE" }
         };
         var json = JsonConvert.SerializeObject(body);
-        request.Content = new StringContent(json, Encoding.UTF8, "application/json");
-
-        var response = await _api.SendAsync(request, true);
+        var response = await _api.SendAsync(request, json, true);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -207,7 +205,7 @@ public class EbayInventoryService
         return merchantLocationKey;
 
     }
-    
+
     /// <summary>
     /// This method is used to delete inventory items by SKU
     /// </summary>

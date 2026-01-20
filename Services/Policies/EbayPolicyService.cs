@@ -57,7 +57,7 @@ public class EbayPolicyService
         }";
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.sandbox.ebay.com/sell/account/v1/return_policy");
         request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-        var response = await _api.SendAsync(request, true);
+        var response = await _api.SendAsync(request, jsonBody, true);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -144,8 +144,7 @@ public class EbayPolicyService
                         }";
 
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.sandbox.ebay.com/sell/account/v1/payment_policy");
-        request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-        var response = await _api.SendAsync(request, true);
+        var response = await _api.SendAsync(request, jsonBody, true);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
