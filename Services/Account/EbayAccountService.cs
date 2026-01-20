@@ -1,6 +1,9 @@
 using System.Text;
+using EbayAutomationService.Domain.Enums;
+using EbayAutomationService.Infrastructure.Ebay.Mappers;
 using EbayAutomationService.Services;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 // This class is used to communicate to the Ebay account API
 public class EbayAccountService
@@ -16,11 +19,11 @@ public class EbayAccountService
     /// <param name=""></param>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task optInBusinessSellerProgram()
+    public async Task optInBusinessSellerProgram(EbayProgramType ebayProgramType)
     {
         var body = new
         {
-            programType = "SELLING_POLICY_MANAGEMENT",
+            programType = EbayProgramTypeMapper.ToApiValue(ebayProgramType),
         };
 
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.sandbox.ebay.com/sell/account/v1/program/opt_in");
@@ -62,5 +65,10 @@ public class EbayAccountService
                 response.StatusCode
             );
         }
+        
+        return JObject.Parse(json)["programs"]
+            .Select(p => p["programType"]?.ToString())
+            .Where(p => !string.IsNullOrEmpty(p))
+            .ToList();
     }
 }

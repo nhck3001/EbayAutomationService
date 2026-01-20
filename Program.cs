@@ -1,8 +1,6 @@
 ﻿using EbayAutomationService.Services;
-using EbayAutomationService.Models;
 using DotNetEnv;
 using System.ComponentModel.DataAnnotations;
-
 class Program
 {
     static async Task Main()
@@ -33,22 +31,23 @@ class Program
         var inventoryService = new EbayInventoryService(ebayAPIClient);
         var offerService = new EbayOfferService(ebayAPIClient);
 
-        var defaultCategoryTreeId = await categoryService.getDefaultCategoryTreeID();
-        var suggesstedCategoryId = await categoryService.getSuggesstedCategory(defaultCategoryTreeId, "Iphone6");
-
-        var fulfillmentPolicyId = await policyService.getFulfillmentPolicyIDs();
-        var paymentPolicyId = await policyService.getPaymentPolicyIDByName("MyPaymentPolicy");
-        var returnPolicyId = await policyService.getReturnPolicyIDByName("m********e");
-        var allSku = await inventoryService.getAllSku();
-        //for (int x = 0; x <= 50; x++)
-        //{
-        //    await listingService.CreateInventoryItem(x.ToString());
-        //}
-        //10592561010
-        var merchangeLocationKey = await inventoryService.getInventoryLocations();
-        await offerService.updateOffer("10592561010", fulfillmentPolicyId, paymentPolicyId, returnPolicyId, merchangeLocationKey);
-        await offerService.publishOffer("10592561010");
-        var x = await offerService.getOffers("1");
+        //var defaultCategoryTreeId = await categoryService.getDefaultCategoryTreeID();
+        //var suggesstedCategoryId = await categoryService.getSuggesstedCategory(defaultCategoryTreeId, "Iphone6");
+        //
+        //var fulfillmentPolicyId = await policyService.getFulfillmentPolicyIDs();
+        //var paymentPolicyId = await policyService.getPaymentPolicyIDByName("MyPaymentPolicy");
+        //var returnPolicyId = await policyService.getReturnPolicyIDByName("m********e");
+        //var allSku = await inventoryService.getAllSku();
+        ////for (int x = 0; x <= 50; x++)
+        ////{
+        ////    await listingService.CreateInventoryItem(x.ToString());
+        ////}
+        ////10592561010
+        //var merchangeLocationKey = await inventoryService.getInventoryLocations();
+        //await offerService.updateOffer("10592561010", fulfillmentPolicyId, paymentPolicyId, returnPolicyId, merchangeLocationKey);
+        //await offerService.publishOffer("10592561010");
+        //var x = await offerService.getOffers("1");
+        await accountService.getOptedInPrograms();
     }   
 }
 

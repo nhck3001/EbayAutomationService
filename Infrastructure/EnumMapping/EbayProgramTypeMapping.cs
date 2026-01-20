@@ -2,6 +2,7 @@ using EbayAutomationService.Domain.Enums;
 
 namespace EbayAutomationService.Infrastructure.Ebay.Mappers;
 
+// Mapping Enum values to string value for EbayProgramType
 public static class EbayProgramTypeMapper
 {
     public static string ToApiValue(EbayProgramType type) =>
