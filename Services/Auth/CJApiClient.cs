@@ -1,13 +1,37 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
-using EbayAutomationService.Services.CJ.Models;
 
 public class CJApiClient
 {
     private readonly HttpClient _httpClient;
     private readonly CjTokenManager _tokenManager;
-
+    // Semaphore lock to ensure 1 thead can call API at a time
+    private static readonly SemaphoreSlim _rateLimiter = new(1, 1);
+    private static DateTime _lastRequestTime = DateTime.MinValue;
     private const string BaseUrl = "https://developers.cjdropshipping.com/api2.0/v1/";
+
+    // Make sure every API request is called no more often than every 1.1 s
+    // Because Cj QPS is 1 per second. This is global.
+    private async Task ExecuteWithCjRateLimitAsync(Func<Task> action)
+    {
+        await _rateLimiter.WaitAsync();
+        try
+        {
+            var elapsed = DateTime.UtcNow - _lastRequestTime;
+            if (elapsed.TotalMilliseconds < 1100)
+            {
+                await Task.Delay(1100 - (int)elapsed.TotalMilliseconds);
+            }
+
+            await action(); //  the ACTUAL CJ call happens here
+
+            _lastRequestTime = DateTime.UtcNow;
+        }
+        finally
+        {
+            _rateLimiter.Release();
+        }
+    }
 
     public CJApiClient(CjTokenManager tokenManager)
     {
@@ -33,50 +57,44 @@ public class CJApiClient
 
     private async Task<T> GetAsync<T>(string endpoint)
     {
-        await AddAuthAsync();
+        T result = default!;
 
-        var response = await _httpClient.GetAsync(endpoint);
-        var body = await response.Content.ReadAsStringAsync();
-        //Console.WriteLine(body);
-        if (!response.IsSuccessStatusCode)
-            throw new Exception($"CJ API error: {body}");
-        try
+        await ExecuteWithCjRateLimitAsync(async () =>
         {
-            // Check if body.code != 200
-            // IsSuccessStatusCode can be 200 while body returns false
+            await AddAuthAsync(); // token refresh is now protected
+
+            var response = await _httpClient.GetAsync(endpoint);
+            var body = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+                throw new Exception($"CJ HTTP error: {body}");
+
             using var doc = JsonDocument.Parse(body);
-            if (doc.RootElement.TryGetProperty("code", out var codeElement))
+            if (doc.RootElement.TryGetProperty("code", out var codeEl))
             {
-                var code = codeElement.GetInt32();
-
+                var code = codeEl.GetInt32();
                 if (code != 200)
-                {
-                    throw new Exception($"CJ API returned code {code}: {body}");
-                }
+                    throw new Exception($"CJ API error {code}: {body}");
             }
-            var result = JsonSerializer.Deserialize<T>(
+
+            result = JsonSerializer.Deserialize<T>(
                 body,
-                new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-            return result;
-        }
-        catch (JsonException ex)
-        {
-            Console.WriteLine("PATH: " + ex.Path);
-            throw;
-        }
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            )!;
+        });
+
+        return result;
     }
+
 
     // ---------- READ-ONLY ENDPOINTS ----------
 
     /// <summary>
     /// List products from US warehouse only
     /// </summary>
-    public Task<CjProductListResponse> GetUsWarehouseProductsAsync(int pageNum = 1,int pageSize = 50)
+    public Task<CjProductListResponse> GetUsWarehouseProductsAsync(int pageNum = 200, int pageSize = 50)
     {
-        var endpoint =$"product/list?warehouseCode=US&pageNum={pageNum}&pageSize={pageSize}";
+        var endpoint = $"product/list?warehouseCode=US&pageNum={pageNum}&pageSize={pageSize}";
 
         return GetAsync<CjProductListResponse>(endpoint);
     }
@@ -89,13 +107,39 @@ public class CJApiClient
         var endpoint = $"product/query?pid={pid}";
         return GetAsync<CjProductListResponse>(endpoint);
     }
-
-    /// <summary>
-    /// Get stock by warehouse + variant for a product
-    /// </summary>
-    public Task<CjProductVariantResponse> GetProductStockAsync(string pid)
+    public Task<CjProductListResponse> GetCategoryTreeAsync()
     {
-        var endpoint = $"product/variant/queryByPid?pid={pid}";
-        return GetAsync<CjProductVariantResponse>(endpoint);
+        var endpoint = $"product/getCategory";
+        return GetAsync<CjProductListResponse>(endpoint);
     }
+    // For now, we will harcode the categoryId as HomeOfficeStorage
+    public async Task<List<CjProductDetail>> GetProductBasedOnCategoryAsync(int maxPages = 100, int pageSize = 50, string categoryId = "87CF251F-8D11-4DE0-A154-9694D9858EB3")
+    {
+        var usProducts = new List<CjProductDetail>();
+        // Loop through each page
+        for (int page = 1; page <= maxPages; page++)
+        {
+            Console.WriteLine($"Scanning page {page}...");
+            var response = await GetAsync<CjProductListResponse>($"product/list?warehouseCode=US&categoryId={categoryId}&pageNum={page}&pageSize={pageSize}");
+
+            // Filter for products that are shipped from the USA
+            var pageUsProducts = response.Data.List
+            .Where(p =>
+                p.ShippingCountryCodes != null &&
+                p.ShippingCountryCodes.Contains("US"))
+            .ToList();
+
+            usProducts.AddRange(pageUsProducts);
+            Console.WriteLine($"Page {page}: {pageUsProducts.Count} US products found (total: {usProducts.Count})");
+        }
+
+        return usProducts;
+    }
+    
+    // Function t
+
+        
+        
+
+
 }
