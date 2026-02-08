@@ -49,13 +49,13 @@ public class EbayPolicyService
             ""marketplaceId"": ""EBAY_US"",
             ""refundMethod"": ""MONEY_BACK"",
             ""returnsAccepted"": true,
-            ""returnShippingCostPayer"": ""SELLER"",
+            ""returnShippingCostPayer"": ""BUYER"",
             ""returnPeriod"": {
                 ""value"": 30,
                 ""unit"": ""DAY""
             }
         }";
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.sandbox.ebay.com/sell/account/v1/return_policy");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/sell/account/v1/return_policy");
         request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
         var response = await _api.SendAsync(request, jsonBody, true);
         var responseJson = await response.Content.ReadAsStringAsync();
@@ -79,7 +79,7 @@ public class EbayPolicyService
     /// <exception cref="HttpRequestException"></exception>
     public async Task<string> getReturnPolicyIDByName(string returnPolicyName)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.sandbox.ebay.com/sell/account/v1/return_policy/get_by_policy_name?marketplace_id=EBAY_US&name={returnPolicyName}&");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/sell/account/v1/return_policy/get_by_policy_name?marketplace_id=EBAY_US&name={returnPolicyName}&");
         var response = await _api.SendAsync(request);
         var responseJson = await response.Content.ReadAsStringAsync();
 
@@ -105,7 +105,7 @@ public class EbayPolicyService
     /// <exception cref="HttpRequestException"></exception>
     public async Task<string> getFulfillmentPolicyIDs()
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://api.sandbox.ebay.com/sell/account/v1/fulfillment_policy/get_by_policy_name?marketplace_id=EBAY_US&name=MyPolicy&");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://api.ebay.com/sell/account/v1/fulfillment_policy/get_by_policy_name?marketplace_id=EBAY_US&name=MyPolicy&");
 
         var response = await _api.SendAsync(request);
         var responseJson = await response.Content.ReadAsStringAsync();
@@ -143,7 +143,7 @@ public class EbayPolicyService
                             ]
                         }";
 
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.sandbox.ebay.com/sell/account/v1/payment_policy");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/sell/account/v1/payment_policy");
         var response = await _api.SendAsync(request, jsonBody, true);
         var responseJson = await response.Content.ReadAsStringAsync();
 
