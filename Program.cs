@@ -3,6 +3,7 @@ using DotNetEnv;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.VisualBasic;
 using System.Linq;
+using Newtonsoft.Json;
 
 class Program
 {
@@ -30,10 +31,24 @@ class Program
         var list5 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections", offset: 200);
         // Get all itemId in a list
         var totalList = list1.Concat(list2).Concat(list3).Concat(list4).Concat(list5).Distinct().ToList();
+        var researchResults = new List<EbayItemResearchData>();
+
         foreach (var itemId in totalList)
         {
-            var item = await ebayBrowseService.GetItemByItemId(itemId);
+            var itemJson = await ebayBrowseService.GetItemByItemId(itemId);
+
+            var researchData = EbayItemResearchData.ExtractResearchData(itemJson);
+            researchResults.Add(researchData);
+
+            await Task.Delay(200); // rate-limit safety
         }
+
+        var outputPath = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/item.json";
+        var json = JsonConvert.SerializeObject(researchResults,Formatting.Indented);
+
+        File.WriteAllText(outputPath, json);
+        var x = 10;
+
 
         //// Making call to the EbayUserService API to retrieve user info
         //var userService = new EbayUserService(ebayAPIClient);

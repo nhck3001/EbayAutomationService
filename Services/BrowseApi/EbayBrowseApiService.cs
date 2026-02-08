@@ -93,9 +93,8 @@ public class EbayBrowseApiService
             );
         }
 
-        var x = JObject.Parse(responseJson);
-        var y = 10;
-        return x;
+        var itemJson = JObject.Parse(responseJson);
+        return itemJson;
     }
 
 
