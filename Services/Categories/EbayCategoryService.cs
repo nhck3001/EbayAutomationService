@@ -19,7 +19,7 @@ public class EbayCategoryService
     /// <exception cref="Exception"></exception>
     public async Task<string> getDefaultCategoryTreeID()
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://api.sandbox.ebay.com/commerce/taxonomy/v1/get_default_category_tree_id?marketplace_id=EBAY_US");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://api.ebay.com/commerce/taxonomy/v1/get_default_category_tree_id?marketplace_id=EBAY_US");
         var response = await _api.SendAsync(request);
         var responseJson = await response.Content.ReadAsStringAsync();
 
@@ -40,7 +40,7 @@ public class EbayCategoryService
     /// /// </summary> /// <returns></returns> /// <exception cref="HttpRequestException"></exception> /// <exception cref="Exception"></exception> 
     public async Task<string> getSuggesstedCategory(string defaultCategoryTreeID, string suggesstedPhrase)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.sandbox.ebay.com/commerce/taxonomy/v1/category_tree/{defaultCategoryTreeID}/get_category_suggestions?q={suggesstedPhrase}");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/commerce/taxonomy/v1/category_tree/{defaultCategoryTreeID}/get_category_suggestions?q={suggesstedPhrase}");
         var response = await _api.SendAsync(request);
         var responseJson = await response.Content.ReadAsStringAsync();
         if (!response.IsSuccessStatusCode)

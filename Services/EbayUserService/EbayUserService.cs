@@ -19,7 +19,7 @@ public class EbayUserService
     {
 
         // HttPClient() object allows sending Http request to api servers        
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://apiz.sandbox.ebay.com/commerce/identity/v1/user/");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/commerce/identity/v1/user/");
         var response = await _api.SendAsync(request);
         // Get the response in the form of HttpResponseMessage object
         var json = await response.Content.ReadAsStringAsync();

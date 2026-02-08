@@ -113,7 +113,7 @@ public class CJApiClient
         return GetAsync<CjProductListResponse>(endpoint);
     }
     // For now, we will harcode the categoryId as HomeOfficeStorage
-    public async Task<List<CjProductDetail>> GetProductBasedOnCategoryAsync(int maxPages = 100, int pageSize = 50, string categoryId = "87CF251F-8D11-4DE0-A154-9694D9858EB3")
+    public async Task<List<CjProductDetail>> GetProductBasedOnCategoryAsync(int maxPages = 1, int pageSize = 50, string categoryId = "87CF251F-8D11-4DE0-A154-9694D9858EB3")
     {
         var usProducts = new List<CjProductDetail>();
         // Loop through each page

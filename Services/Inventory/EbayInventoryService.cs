@@ -37,7 +37,7 @@ public class EbayInventoryService
         };
 
 
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, "https://api.sandbox.ebay.com/sell/inventory/v1/inventory_item/" + sku);
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, "https://api.ebay.com/sell/inventory/v1/inventory_item/" + sku);
         var json = JsonConvert.SerializeObject(body);
         var response = await _api.SendAsync(request, json, true);
 
@@ -63,7 +63,7 @@ public class EbayInventoryService
         // Set up the header value
         while (offset < total)
         {
-            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.sandbox.ebay.com/sell/inventory/v1/inventory_item?offset={offset}&limit={limit}");
+            HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/sell/inventory/v1/inventory_item?offset={offset}&limit={limit}");
             // Get the response in the form of HttpResponseMessage object
             var response = await _api.SendAsync(request);
             var json = await response.Content.ReadAsStringAsync();
@@ -101,7 +101,7 @@ public class EbayInventoryService
     public async Task<string> GetInventoryItemCount()
     {
 
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://api.sandbox.ebay.com/sell/inventory/v1/inventory_item?limit=2&offset=0");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://api.ebay.com/sell/inventory/v1/inventory_item?limit=2&offset=0");
         var response = await _api.SendAsync(request);
         var json = await response.Content.ReadAsStringAsync();
 
@@ -125,7 +125,7 @@ public class EbayInventoryService
     /// <exception cref="HttpRequestException"></exception>
     public async Task createInventoryLocation(string merchantLocationKey)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"https://api.sandbox.ebay.com/sell/inventory/v1/location/{merchantLocationKey}");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"https://api.ebay.com/sell/inventory/v1/location/{merchantLocationKey}");
         var body = new
         {
             location = new
@@ -173,7 +173,7 @@ public class EbayInventoryService
     /// <exception cref="HttpRequestException"></exception>
     public async Task<string> getInventoryLocations()
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.sandbox.ebay.com/sell/inventory/v1/location?");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/sell/inventory/v1/location?");
         var response = await _api.SendAsync(request);
         var responseJson = await response.Content.ReadAsStringAsync();
 
@@ -213,7 +213,7 @@ public class EbayInventoryService
     /// <exception cref="HttpRequestException"></exception>
     public async Task deleteInventoryItem(string sku)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, $"https://api.sandbox.ebay.com/sell/inventory/v1/inventory_item/{sku}");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, $"https://api.ebay.com/sell/inventory/v1/inventory_item/{sku}");
         var response = await _api.SendAsync(request);
         var responseJson = await response.Content.ReadAsStringAsync();
 

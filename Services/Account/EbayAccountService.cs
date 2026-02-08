@@ -49,7 +49,7 @@ public class EbayAccountService
     /// <exception cref="HttpRequestException"></exception>
     public async Task<List<string>> getOptedInPrograms()
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://api.sandbox.ebay.com/sell/account/v1/program/get_opted_in_programs");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://api.ebay.com/sell/account/v1/program/get_opted_in_programs");
 
         var response = await _api.SendAsync(request);
         var responseJson = await response.Content.ReadAsStringAsync();

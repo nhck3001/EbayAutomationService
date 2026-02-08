@@ -131,7 +131,7 @@ public class EbayOfferService
     /// <exception cref="Exception"></exception>
     public async Task<string> getOffers(string sku)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.sandbox.ebay.com/sell/inventory/v1/offer?sku={sku}");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/sell/inventory/v1/offer?sku={sku}");
         var response = await _api.SendAsync(request);
         var responseJson = await response.Content.ReadAsStringAsync();
 

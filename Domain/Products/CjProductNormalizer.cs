@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using EbayAutomationService.Domain.Products;
 
 // A class used to parse raw data from Cj to normalized Ebay listing 
@@ -5,37 +6,57 @@ public static class CjProductNormalizer
 {
 
     // Normalizing object return from Cj to Normalied Produ
-    public static List<NormalizedProduct> NormalizeProducts(List<CjProductDetail> cjProducts)
+    public static (List<NormalizedProduct> Success, List<NormalizationReport> Failures)       
+     NormalizeProducts(List<CjProductDetail> cjProducts)
     {
-        var results = new List<NormalizedProduct>();
+        var success = new List<NormalizedProduct>();
+        var failures = new List<NormalizationReport>();
 
         foreach (var cj in cjProducts)
         {
-            // Filter: missing image
-            if (string.IsNullOrWhiteSpace(cj.ProductImage))
-                continue;
+            var report = new NormalizationReport
+            {
+                SupplierProductId = cj.Pid ?? ""
+            };
 
-            // Filter: price > 100
+            //Supplier-level checks (CJ problems)
             var price = ExtractMaxPrice(cj.SellPrice);
-            if (price > 100m || price <= 0)
+            if (string.IsNullOrWhiteSpace(cj.ProductNameEn))
+            {
+                report.Reasons.Add(NormalizationFailureReason.MissingTitle);
                 continue;
-
-            // Filter: US shipping
-            if (cj.ShippingCountryCodes == null || !cj.ShippingCountryCodes.Contains("US"))
+            }
+            else if (string.IsNullOrWhiteSpace(cj.ProductImage))
+            {
+                report.Reasons.Add(NormalizationFailureReason.MissingImage);
                 continue;
+            }
+            else if (price <= 0 || price > 100)
+            {
+                report.Reasons.Add(NormalizationFailureReason.InvalidPrice);
+                continue;
+            }
 
-            // Convert → NormalizedProduct
+            // Mapping 
             var normalized = MapToNormalized(cj, price);
 
-            // Validate required listing fields
-            if (!IsValid(normalized))
-                continue;
+            // Reuse IsValid
+            var validation = Validate(normalized);
 
-            results.Add(normalized);
+            if (!validation.IsValid)
+            {
+                report.Reasons.AddRange(validation.Reasons);
+                failures.Add(report);
+                continue;
+            }
+
+            success.Add(normalized);
         }
 
-        return results;
+        return (success, failures);
     }
+
+
     private static NormalizedProduct MapToNormalized(CjProductDetail cj, decimal price)
     {
         return new NormalizedProduct
@@ -43,11 +64,9 @@ public static class CjProductNormalizer
             Supplier = "CJ",
             SupplierProductId = cj.Pid!,
 
-            Title = string.IsNullOrWhiteSpace(cj.ProductNameEn)
-                ? "Home Storage Organizer"
-                : cj.ProductNameEn,
+            Title = cj.ProductNameEn!,
 
-            DescriptionHtml = cj.Remark ?? "<p>No description provided.</p>",
+            DescriptionHtml = cj.Remark ?? "",
 
             MainImage = cj.ProductImage!,
             GalleryImages = new List<string> { cj.ProductImage! },
@@ -78,19 +97,22 @@ public static class CjProductNormalizer
 
         return max;
     }
-    private static bool IsValid(NormalizedProduct p)
+    public static ValidationResult Validate(NormalizedProduct product)
     {
-        if (string.IsNullOrWhiteSpace(p.SupplierProductId)) return false;
-        if (string.IsNullOrWhiteSpace(p.Title)) return false;
-        if (string.IsNullOrWhiteSpace(p.MainImage)) return false;
-        if (p.GalleryImages == null || p.GalleryImages.Count == 0) return false;
-        if (p.Price <= 0) return false;
-        if (string.IsNullOrWhiteSpace(p.DescriptionHtml)) return false;
-        if (p.Quantity <= 0) return false;
-        if (!p.IsUSShippable) return false;
-        if (string.IsNullOrWhiteSpace(p.EbayCategoryId)) return false;
+        var result = new ValidationResult();
 
-        return true;
+
+        if (product.MainImage == null || product.GalleryImages.Count == 0)
+            result.Reasons.Add(NormalizationFailureReason.MissingImage);
+
+        if (product.Price <=0 )
+            result.Reasons.Add(NormalizationFailureReason.MissingPrice);
+
+        if (product.Quantity <=0)
+            result.Reasons.Add(NormalizationFailureReason.MissingQuantity);
+
+        return result;
     }
+
 }
 
