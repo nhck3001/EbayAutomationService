@@ -1,5 +1,6 @@
 using System.Text;
 using EbayAutomationService.Services;
+using Newtonsoft.Json.Linq;
 
 public class EbayPolicyService
 {
@@ -9,32 +10,44 @@ public class EbayPolicyService
     {
         _api = api;
     }
+    private static string FindPolicyId(
+    string json,
+    string arrayName,
+    string idField,
+    string policyName)
+{
+    var policies = JObject.Parse(json)[arrayName]!;
+    foreach (var policy in policies)
+    {
+        if (policy["name"]?.ToString() == policyName)
+            return policy[idField]!.ToString();
+    }
+
+    throw new Exception($"{idField} not found for policy '{policyName}'");
+}
+
 
     /// <summary>
     /// This method is to get the pyamentPolicyId by name
     /// </summary>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task<string> getPaymentPolicyIDByName(string policyName)
+    public async Task<string> GetPaymentPolicyId(string policyName)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.sandbox.ebay.com/sell/account/v1/payment_policy/get_by_policy_name?marketplace_id=EBAY_US&name={policyName}&");
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            "https://api.ebay.com/sell/account/v1/payment_policy?marketplace_id=EBAY_US"
+        );
+
         var response = await _api.SendAsync(request);
-        var responseJson = await response.Content.ReadAsStringAsync();
+        var json = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
-        {
+            throw new Exception(json);
 
-            // Throws a more informative exception, including the HTTP status code
-            throw new HttpRequestException(
-                $"eBay API request failed with status code {response.StatusCode}. Response: {response.Content}",
-                null,
-                response.StatusCode
-            );
-        }
-        string paymentPolicyId = Newtonsoft.Json.Linq.JObject.Parse(responseJson)["paymentPolicyId"]?.ToString() ?? throw new Exception("fulfillmentPolicyId not found");
-
-        return paymentPolicyId;
+        return FindPolicyId(json, "paymentPolicies", "paymentPolicyId", policyName);
     }
+
 
     /// <summary>
     /// This method is to get all the fulfillment policy ID
@@ -77,53 +90,44 @@ public class EbayPolicyService
     /// </summary>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task<string> getReturnPolicyIDByName(string returnPolicyName)
+    public async Task<string> GetReturnPolicyId(string policyName)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/sell/account/v1/return_policy/get_by_policy_name?marketplace_id=EBAY_US&name={returnPolicyName}&");
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            "https://api.ebay.com/sell/account/v1/return_policy?marketplace_id=EBAY_US"
+        );
+
         var response = await _api.SendAsync(request);
-        var responseJson = await response.Content.ReadAsStringAsync();
+        var json = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
-        {
+            throw new Exception(json);
 
-            // Throws a more informative exception, including the HTTP status code
-            throw new HttpRequestException(
-                $"eBay API request failed with status code {response.StatusCode}. Response: {response.Content}",
-                null,
-                response.StatusCode
-            );
-        }
-        string returnPolicyId = Newtonsoft.Json.Linq.JObject.Parse(responseJson)["returnPolicyId"]?.ToString() ?? throw new Exception("fulfillmentPolicyId not found");
-
-        return returnPolicyId;
+        return FindPolicyId(json, "returnPolicies", "returnPolicyId", policyName);
     }
+
     
         /// <summary>
     /// This method is to get all the fulfillment policy ID
     /// </summary>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task<string> getFulfillmentPolicyIDs()
+    public async Task<string> GetFulfillmentPolicyId(string policyName)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://api.ebay.com/sell/account/v1/fulfillment_policy/get_by_policy_name?marketplace_id=EBAY_US&name=MyPolicy&");
+        var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            "https://api.ebay.com/sell/account/v1/fulfillment_policy?marketplace_id=EBAY_US"
+        );
 
         var response = await _api.SendAsync(request);
-        var responseJson = await response.Content.ReadAsStringAsync();
+        var json = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
-        {
+            throw new Exception(json);
 
-            // Throws a more informative exception, including the HTTP status code
-            throw new HttpRequestException(
-                $"eBay API request failed with status code {response.StatusCode}. Response: {response.Content}",
-                null,
-                response.StatusCode
-            );
-        }
-        string fulfillmentPolicyId = Newtonsoft.Json.Linq.JObject.Parse(responseJson)["fulfillmentPolicyId"]?.ToString() ?? throw new Exception("fulfillmentPolicyId not found");
-
-        return fulfillmentPolicyId;
+        return FindPolicyId(json, "fulfillmentPolicies", "fulfillmentPolicyId", policyName);
     }
+
 
     /// <summary>
     /// This method is used to create a payment policy ID

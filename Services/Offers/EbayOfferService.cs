@@ -1,6 +1,7 @@
 using System.Text;
 using EbayAutomationService.Services;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 public class EbayOfferService
 {
@@ -17,33 +18,92 @@ public class EbayOfferService
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
     /// <exception cref="Exception"></exception>
-    public async Task<string> createOffer(string sku)
+    public async Task<string> CreateOffer(
+        string sku,
+        string categoryId,
+        decimal price,
+        string merchantLocationKey,
+        string paymentPolicyId,
+        string fulfillmentPolicyId,
+        string returnPolicyId
+    )
     {
         var body = new
         {
             sku = sku,
             marketplaceId = "EBAY_US",
             format = "FIXED_PRICE",
+            availableQuantity = 1,
+            categoryId = categoryId,
+            merchantLocationKey = merchantLocationKey,
+            listingPolicies = new
+            {
+                paymentPolicyId = paymentPolicyId,
+                fulfillmentPolicyId = fulfillmentPolicyId,
+                returnPolicyId = returnPolicyId
+            },
+            pricingSummary = new
+            {
+                price = new
+                {
+                    value = price,
+                    currency = "USD"
+                }
+            }
         };
+
         var jsonBody = JsonConvert.SerializeObject(body);
+        Console.WriteLine("CreateOffer payload:\n" + jsonBody);
 
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.sandbox.ebay.com/sell/inventory/v1/offer");
-        request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-        var response = await _api.SendAsync(request, jsonBody, true);
-        var responseJson = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
+        var request = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/sell/inventory/v1/offer");
+        HttpResponseMessage response;
+        string responseText;
+        try
         {
-            // Throws a more informative exception, including the HTTP status code
-            throw new HttpRequestException(
-                $"eBay API request failed with status code {response.StatusCode}. Response: {response.Content}",
-                null,
-                response.StatusCode
-            );
+            response = await _api.SendAsync(request, jsonBody, true);
+            responseText = await response.Content.ReadAsStringAsync();
         }
-        var offerId = Newtonsoft.Json.Linq.JObject.Parse(responseJson)["Id"]?.ToString();
-        return offerId ?? throw new Exception("No offerId returned.");
+        catch (HttpRequestException)
+        {
+            throw;
+        }
+
+        // Created successfully
+        if (response.IsSuccessStatusCode)
+        {
+            var json = JObject.Parse(responseText);
+            var offerId = json["offerId"]!.ToString();
+            return offerId;
+        }
+
+        else
+        {
+            Console.WriteLine("CreateOffer failed:");
+            Console.WriteLine(responseText);
+
+            var errorJson = JObject.Parse(responseText);
+            var error = errorJson["errors"]?.FirstOrDefault();
+
+            if (error?["errorId"]?.Value<int>() == 25002)
+            {
+                // Offer already exists → extract offerId
+                var offerId = error["parameters"]
+                    ?.FirstOrDefault(p => p["name"]?.ToString() == "offerId")
+                    ?["value"]
+                    ?.ToString();
+
+                if (!string.IsNullOrEmpty(offerId))
+                {
+                    Console.WriteLine($"Offer already exists. Publishing offer {offerId}");
+                    return offerId;
+                }
+            }
+
+            throw new HttpRequestException("CreateOffer failed");
+        }
     }
+
+
 
     /// <summary>
     /// Update an offer based on offerID. Returns nothing
@@ -80,8 +140,8 @@ public class EbayOfferService
 
 
 
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, $"https://api.sandbox.ebay.com/sell/inventory/v1/offer/{offerID}");
-        var response = await _api.SendAsync(request,jsonBody, true);
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, $"https://api.ebay.com/sell/inventory/v1/offer/{offerID}");
+        var response = await _api.SendAsync(request, jsonBody, true);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -104,9 +164,7 @@ public class EbayOfferService
     /// <exception cref="Exception"></exception>
     public async Task publishOffer(string offerId)
     {
-
-        using var client = new HttpClient();
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"https://api.sandbox.ebay.com/sell/inventory/v1/offer/{offerId}/publish");
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"https://api.ebay.com/sell/inventory/v1/offer/{offerId}/publish");
         // Set the content type, and content-language header for the content as required in the ebay doc
 
         var response = await _api.SendAsync(request);

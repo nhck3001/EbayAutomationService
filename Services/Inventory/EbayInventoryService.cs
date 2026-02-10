@@ -14,43 +14,81 @@ public class EbayInventoryService
     }
 
     // This is used to mass create InventoryItem, which is used to create listings later on
-    public async Task CreateInventoryItem(string sku)
+    // This represent a product, not the listing itself
+    public async Task CreateOrUpdateInventoryItem(
+        string sku,
+        string title,
+        string description,
+        List<string> images,
+        Dictionary<string, List<string>> itemSpecifics,
+        int quantity
+    )
     {
-        using var client = new HttpClient();
-
         var body = new
         {
             product = new
             {
-                title = $"Test Product {sku}",
-                description = "This is a sandbox test product.",
-                aspects = new { Brand = new[] { "TestBrand" } }
+                title = title,
+                description = description,
+                aspects = itemSpecifics,
+                imageUrls = images
             },
             condition = "NEW",
             availability = new
             {
                 shipToLocationAvailability = new
                 {
-                    quantity = 10
+                    quantity = quantity
                 }
             }
         };
 
+        var jsonBody = JsonConvert.SerializeObject(body);
 
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, "https://api.ebay.com/sell/inventory/v1/inventory_item/" + sku);
-        var json = JsonConvert.SerializeObject(body);
-        var response = await _api.SendAsync(request, json, true);
+        var url = $"https://api.ebay.com/sell/inventory/v1/inventory_item/{sku}";
+        var request = new HttpRequestMessage(HttpMethod.Put, url);
 
-        if (!response.IsSuccessStatusCode)
+        try
         {
-            // Throws a more informative exception, including the HTTP status code
-            throw new HttpRequestException(
-                $"eBay API request failed with status code {response.StatusCode}. Response: {json}",
-                null,
-                response.StatusCode
-            );
+            var response = await _api.SendAsync(request,jsonBody,true);
+            var responseText = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Response:");
+                Console.WriteLine(responseText);
+
+                Console.WriteLine("❌ InventoryItem API error");
+                Console.WriteLine($"SKU: {sku}");
+                Console.WriteLine($"Status: {(int)response.StatusCode} {response.StatusCode}");
+                Console.WriteLine("Request body:");
+                Console.WriteLine(jsonBody);
+                Console.WriteLine("Response:");
+                Console.WriteLine(responseText);
+
+                throw new HttpRequestException(
+                    $"InventoryItem create/update failed for SKU {sku}"
+                );
+            }
+
+            Console.WriteLine($"InventoryItem created/updated for SKU: {sku}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("🔥 Exception during InventoryItem creation");
+            Console.WriteLine($"SKU: {sku}");
+            Console.WriteLine($"Message: {ex.Message}");
+
+            if (ex.InnerException != null)
+            {
+                Console.WriteLine($"Inner: {ex.InnerException.Message}");
+            }
+
+            throw; // rethrow so you don't silently continue
         }
     }
+
+
 
     // Get the number of Inventory Items that user has
     public async Task<List<string>> getAllSku()
@@ -123,46 +161,58 @@ public class EbayInventoryService
     /// <param name="merchantLocationKey"></param>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task createInventoryLocation(string merchantLocationKey)
+    public async Task CreateInventoryLocationIfNotExists(string merchantLocationKey)
     {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"https://api.ebay.com/sell/inventory/v1/location/{merchantLocationKey}");
+        var url = $"https://api.ebay.com/sell/inventory/v1/location/{merchantLocationKey}";
+
         var body = new
         {
+            name = "Main US Shipping Location",
+            merchantLocationStatus = "ENABLED",
+            locationTypes = new[] { "WAREHOUSE" },
             location = new
             {
                 address = new
                 {
-                    city = "S*****e",
-                    stateOrProvince = "**",
+                    addressLine1 = "123 Main St",
+                    city = "Dallas",
+                    stateOrProvince = "TX",
+                    postalCode = "75201",
                     country = "US"
                 }
-            },
-            name = "W********1",
-            merchantLocationStatus = "ENABLED",
-            locationTypes = new[] { "WAREHOUSE" }
+            }
         };
+
         var json = JsonConvert.SerializeObject(body);
-        var response = await _api.SendAsync(request, json, true);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+
+        var response = await _api.SendAsync(request);
         var responseJson = await response.Content.ReadAsStringAsync();
 
+        // Location already exists → safe to ignore
         if (!response.IsSuccessStatusCode)
         {
-            if (responseJson.Contains("25803"))
+            if (
+                response.StatusCode == System.Net.HttpStatusCode.Conflict ||
+                responseJson.Contains("25803") // location key already exists
+            )
             {
-                // Log it if you want, then return to "abort" the crash.
-                // This swallows the error and lets the program continue.
-                Console.WriteLine("Merchant Location Key already exists. Skipping creation.");
+                Console.WriteLine($"Merchant location '{merchantLocationKey}' already exists. Skipping creation.");
                 return;
             }
-            // Throws a more informative exception, including the HTTP status code
+
             throw new HttpRequestException(
-                $"eBay API request failed with status code {response.StatusCode}. Response: {response.Content}",
-                null,
-                response.StatusCode
+                $"CreateInventoryLocation failed ({response.StatusCode}): {responseJson}"
             );
         }
-        var treeID = Newtonsoft.Json.Linq.JObject.Parse(responseJson)["categoryID"]?.ToString();
+
+        Console.WriteLine($"Merchant location '{merchantLocationKey}' created or already enabled.");
     }
+
 
 
     /// <summary>
@@ -171,7 +221,7 @@ public class EbayInventoryService
     /// <param name="merchantLocationKey"></param>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task<string> getInventoryLocations()
+    public async Task<string> getMerchantLocationKey()
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/sell/inventory/v1/location?");
         var response = await _api.SendAsync(request);

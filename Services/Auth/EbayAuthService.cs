@@ -13,6 +13,20 @@ public class EbayAuthService
     private readonly string _appId;
     private readonly string _certId;
     private readonly string _refreshToken;
+    private const string EbayScopes =
+        "https://api.ebay.com/oauth/api_scope " +
+        "https://api.ebay.com/oauth/api_scope/sell.inventory " +
+        "https://api.ebay.com/oauth/api_scope/sell.inventory.readonly " +
+        "https://api.ebay.com/oauth/api_scope/sell.account " +
+        "https://api.ebay.com/oauth/api_scope/sell.account.readonly " +
+        "https://api.ebay.com/oauth/api_scope/sell.fulfillment " +
+        "https://api.ebay.com/oauth/api_scope/sell.fulfillment.readonly " +
+        "https://api.ebay.com/oauth/api_scope/sell.analytics.readonly " +
+        "https://api.ebay.com/oauth/api_scope/sell.finances " +
+        "https://api.ebay.com/oauth/api_scope/sell.payment.dispute " +
+        "https://api.ebay.com/oauth/api_scope/sell.stores " +
+        "https://api.ebay.com/oauth/api_scope/sell.stores.readonly " +
+        "https://api.ebay.com/oauth/api_scope/commerce.identity.readonly";
 
     public EbayAuthService(string appId, string certId, string refreshToken)
     {
@@ -39,6 +53,8 @@ public class EbayAuthService
         {
             ["grant_type"] = "refresh_token",
             ["refresh_token"] = _refreshToken,
+            ["scope"] = EbayScopes
+
         });
 
         // Get the response in the form of HttpResponseMessage object

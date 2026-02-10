@@ -8,6 +8,8 @@ using Newtonsoft.Json.Linq;
 using System.Text;
 using System.Xml.Linq;
 using System.Globalization;
+using System.Text.RegularExpressions;
+using System.Diagnostics.CodeAnalysis;
 
 class Program
 {
@@ -22,80 +24,68 @@ class Program
         var refreshToken = Environment.GetEnvironmentVariable("EBAY_REFRESH_TOKEN");
         var ebauAuthTOken = Environment.GetEnvironmentVariable("EBAY_AUTH_TOKEN");
         var ebayDeveloperId = Environment.GetEnvironmentVariable("DEVELOPER_ID");
+        var credentials = $"{appId}:{certId}";
+        var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(credentials));
+        Console.WriteLine(base64);
         // Get the access token by using the EbayAuthService object
         Console.WriteLine("\n----------Requesting access token...----------");
         var ebayAuthService = new EbayAuthService(appId!, certId!, refreshToken!);
         var ebayTokenManager = new EbayTokenManager(ebayAuthService);
+        await ebayTokenManager.ForceRefreshAsync();
         var httpClient = new HttpClient();
         var ebayAPIClient = new EbayApiClient(httpClient, ebayTokenManager);
         var ebayBrowseService = new EbayBrowseApiService(ebayAPIClient);
+        var ebayPolicyService = new EbayPolicyService(ebayAPIClient);
+        var ebayInventoryService = new EbayInventoryService(ebayAPIClient);
+        var ebayOfferService = new EbayOfferService(ebayAPIClient);
+        var paymentPolicyId = await ebayPolicyService.GetPaymentPolicyId("PaymentPolicy");
+        var fulfillmentPolicyId = await ebayPolicyService.GetFulfillmentPolicyId("ShippingPolicy");
+        var returnPolicyId = await ebayPolicyService.GetReturnPolicyId("ReturnPolicyBuyerPay");
+
         var list1 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections");
-        var list2 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections", limit: 50, offset: 50);
-        var list3 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections", offset: 100);
-        var list4 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections", offset: 150);
-        var list5 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections", offset: 200);
-        // Get all itemId in a list
-        var totalList = list1.Concat(list2).Concat(list3).Concat(list4).Concat(list5).Distinct().ToList();
-        var researchResults = new List<EbayItemResearchData>();
+        //var list2 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections", limit: 50, offset: 50);
+        //var list3 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections", offset: 100);
+        //var list4 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections", offset: 150);
+        //var list5 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections", offset: 200);
+        //// Get all itemId in a list
+        //var totalList = list1.Concat(list2).Concat(list3).Concat(list4).Concat(list5).Distinct().ToList();
 
-        foreach (var itemId in list1)
+        var jsonPath = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/item.json";
+        
+        var allItems = JsonConvert.DeserializeObject<List<EbayItemResearchData>>(
+            File.ReadAllText(jsonPath)
+        );
+        
+        var testItems = allItems.Take(10).ToList();
+        foreach (var item in testItems)
         {
-            try
-            {
-                // Convert REST itemId → legacy numeric ID
-                var legacyItemId = itemId.Contains("|") ? itemId.Split('|')[1] : itemId;
-
-                var itemData = await GetItemViaTradingApi(legacyItemId, appId!, certId!, ebayDeveloperId!, ebauAuthTOken!);
-
-                var images = itemData["Images"]?.ToObject<List<string>>() ?? new List<string>();
-
-                var researchItem = new EbayItemResearchData
-                {
-                    ItemId = itemData["ItemID"]?.ToString(),
-                    Title = itemData["Title"]?.ToString(),
-                    CategoryId = itemData["CategoryID"]?.ToString(),
-                    Currency = itemData["Currency"]?.ToString(),
-                    Image = images.FirstOrDefault(),
-                    AdditionalImages = images.Skip(1).ToList(),
-                    ItemSpecifics = itemData["ItemSpecifics"]?.ToObject<Dictionary<string, List<string>>>() ?? new Dictionary<string, List<string>>()
-                };
-
-                if (decimal.TryParse(itemData["Price"]?.ToString(), out var price))
-                {
-                    researchItem.Price = price;
-                }
-
-                researchResults.Add(researchItem);
-
-                // Be polite to Trading API
-                await Task.Delay(300);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Failed to fetch item {itemId}: {ex.Message}");
-            }
+            var sku = item.ItemId; // using itemId as ASIN / SKU
+        
+            // Create / Update Inventory Item
+            await ebayInventoryService.CreateOrUpdateInventoryItem(
+                sku,
+                item.Title,
+                item.Description,
+                item.Images,
+                item.ItemSpecifics,
+                quantity: 5   // inventory pool
+            );
+        
+            // 2️Create Offer
+            var offerId = await ebayOfferService.CreateOffer(
+                sku: sku,
+                categoryId: item.CategoryId,
+                price: item.Price,
+                paymentPolicyId: paymentPolicyId,
+                fulfillmentPolicyId: fulfillmentPolicyId,
+                returnPolicyId: returnPolicyId,
+                merchantLocationKey: "DEFAULT_LOCATION"
+            );
+        
+            // Publish Offer
+            await ebayOfferService.publishOffer(offerId);
+            Console.WriteLine($"Published listing for SKU: {sku}");
         }
-
-        var outputPath = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/item.json";
-
-        var json = JsonConvert.SerializeObject(researchResults, Formatting.Indented);
-
-        File.WriteAllText(outputPath, json);
-
-        Console.WriteLine($"Saved {researchResults.Count} items to {outputPath}");
-
-
-        //// Making call to the EbayUserService API to retrieve user info
-        //var userService = new EbayUserService(ebayAPIClient);
-        //var userInfo = await userService.GetUserInfo();
-        //
-        //// Making call to the EbayListingService to retrieve/edit listing info
-        //// If the lisitng count is 0, create 500 listing for testing purposes
-        //var accountService = new EbayAccountService(ebayAPIClient);
-        //var categoryService = new EbayCategoryService(ebayAPIClient);
-        //var policyService = new EbayPolicyService(ebayAPIClient);
-        //var inventoryService = new EbayInventoryService(ebayAPIClient);
-        //var offerService = new EbayOfferService(ebayAPIClient);
 
     }
     public static async Task<JObject> GetItemViaTradingApi(string itemId, string appId, string certId, string devId, string ebayAuthToken)
@@ -178,7 +168,7 @@ class Program
 
         return result;
     }
-    
+
     public static string CleanUnicode(string input)
     {
         if (string.IsNullOrEmpty(input))
@@ -199,8 +189,30 @@ class Program
 
         return sb.ToString().Trim();
     }
+    public static string CleanEbayDescription(string html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+            return string.Empty;
 
+        // Remove span tags but keep inner text
+        html = Regex.Replace(html, @"<\/?span[^>]*>", "", RegexOptions.IgnoreCase);
 
+        // Remove class attributes
+        html = Regex.Replace(html, @"\sclass=""[^""]*""", "", RegexOptions.IgnoreCase);
+
+        // Remove style attributes
+        html = Regex.Replace(html, @"\sstyle=""[^""]*""", "", RegexOptions.IgnoreCase);
+
+        // Remove unicode directional markers
+        html = html
+            .Replace("\u200E", "")
+            .Replace("\u200F", "")
+            .Replace("\u202A", "")
+            .Replace("\u202B", "")
+            .Replace("\u202C", "");
+
+        return html.Trim();
+    }
 }
 
 
