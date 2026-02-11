@@ -51,8 +51,8 @@ class Program
 
     static async Task ExtractVariantSku(CJApiClient cjClient)
     {
-        var pidFile = "productPid.txt";
-        var progressFile = "skuProgress.txt";
+        var pidFile = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/productPid.txt";
+        var progressFile = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/skuProgress.txt";
 
         if (!File.Exists(pidFile))
         {
@@ -94,7 +94,6 @@ class Program
 
                 await File.WriteAllTextAsync(progressFile, i.ToString());
 
-                await Task.Delay(900); // rate limit protection
             }
             catch (Exception ex)
             {

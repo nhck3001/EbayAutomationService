@@ -144,4 +144,10 @@ public class CJApiClient
         return pids;
     }
 
+    public async Task<CjStockBySkuResponse> GetStockBySkuAsync(string variantSku)
+    {
+        return await GetAsync<CjStockBySkuResponse>($"product/stock/queryBySku?sku={variantSku}");
+    }
+
+
 }
