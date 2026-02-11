@@ -13,81 +13,209 @@ using System.Diagnostics.CodeAnalysis;
 
 class Program
 {
-    static async Task Main()
+    static async Task Main(string[] args)
     {
         // Load .env file
         Env.Load("/Users/nhck3001/Documents/GitHub/EbayAutomationService/file.env");
-        // Load environment variables
         var cjRefreshToken = Environment.GetEnvironmentVariable("CJ_REFRESH_TOKEN");
-        var appId = Environment.GetEnvironmentVariable("APP_ID");
-        var certId = Environment.GetEnvironmentVariable("CLIENT_SECRET");
-        var refreshToken = Environment.GetEnvironmentVariable("EBAY_REFRESH_TOKEN");
-        var ebauAuthTOken = Environment.GetEnvironmentVariable("EBAY_AUTH_TOKEN");
-        var ebayDeveloperId = Environment.GetEnvironmentVariable("DEVELOPER_ID");
-        var credentials = $"{appId}:{certId}";
-        var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(credentials));
-        Console.WriteLine(base64);
-        // Get the access token by using the EbayAuthService object
-        Console.WriteLine("\n----------Requesting access token...----------");
-        var ebayAuthService = new EbayAuthService(appId!, certId!, refreshToken!);
-        var ebayTokenManager = new EbayTokenManager(ebayAuthService);
-        await ebayTokenManager.ForceRefreshAsync();
-        var httpClient = new HttpClient();
-        var ebayAPIClient = new EbayApiClient(httpClient, ebayTokenManager);
-        var ebayBrowseService = new EbayBrowseApiService(ebayAPIClient);
-        var ebayPolicyService = new EbayPolicyService(ebayAPIClient);
-        var ebayInventoryService = new EbayInventoryService(ebayAPIClient);
-        var ebayOfferService = new EbayOfferService(ebayAPIClient);
-        var paymentPolicyId = await ebayPolicyService.GetPaymentPolicyId("PaymentPolicy");
-        var fulfillmentPolicyId = await ebayPolicyService.GetFulfillmentPolicyId("ShippingPolicy");
-        var returnPolicyId = await ebayPolicyService.GetReturnPolicyId("ReturnPolicyBuyerPay");
-
-        var list1 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections");
-        //var list2 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections", limit: 50, offset: 50);
-        //var list3 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections", offset: 100);
-        //var list4 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections", offset: 150);
-        //var list5 = await ebayBrowseService.GetItemIdsBySeller("parwazcollections", offset: 200);
-        //// Get all itemId in a list
-        //var totalList = list1.Concat(list2).Concat(list3).Concat(list4).Concat(list5).Distinct().ToList();
-
-        var jsonPath = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/item.json";
-        
-        var allItems = JsonConvert.DeserializeObject<List<EbayItemResearchData>>(
-            File.ReadAllText(jsonPath)
-        );
-        
-        var testItems = allItems.Take(10).ToList();
-        foreach (var item in testItems)
+        var CjAuthService = new CjAuthService(cjRefreshToken!);
+        var cjTokenManager = new CjTokenManager(CjAuthService);
+        var cjClient = new CJApiClient(cjTokenManager);
+        // Parse arguments and decide which job to run
+        if (args.Length == 0)
         {
-            var sku = item.ItemId; // using itemId as ASIN / SKU
-        
-            // Create / Update Inventory Item
-            await ebayInventoryService.CreateOrUpdateInventoryItem(
-                sku,
-                item.Title,
-                item.Description,
-                item.Images,
-                item.ItemSpecifics,
-                quantity: 5   // inventory pool
-            );
-        
-            // 2️Create Offer
-            var offerId = await ebayOfferService.CreateOffer(
-                sku: sku,
-                categoryId: item.CategoryId,
-                price: item.Price,
-                paymentPolicyId: paymentPolicyId,
-                fulfillmentPolicyId: fulfillmentPolicyId,
-                returnPolicyId: returnPolicyId,
-                merchantLocationKey: "DEFAULT_LOCATION"
-            );
-        
-            // Publish Offer
-            await ebayOfferService.publishOffer(offerId);
-            Console.WriteLine($"Published listing for SKU: {sku}");
+            Console.WriteLine("Usage:");
+            Console.WriteLine("dotnet run crawl   -> discover new products");
+            Console.WriteLine("dotnet run skus    -> extract variant SKUs");
+            return;
+        }
+
+        var job = args[0].ToLower();
+
+        switch (job)
+        {
+            case "crawl":
+                await RunCatalogCrawler(cjClient);
+                break;
+
+            case "skus":
+                await ExtractVariantSku(cjClient);
+                break;
+
+            default:
+                Console.WriteLine("Unknown command");
+                break;
         }
 
     }
+
+    static async Task ExtractVariantSku(CJApiClient cjClient)
+    {
+        var pidFile = "productPid.txt";
+        var progressFile = "skuProgress.txt";
+
+        if (!File.Exists(pidFile))
+        {
+            Console.WriteLine("No PID file found.");
+            return;
+        }
+
+        var existingVariantSkus = await LoadVariantSkusAsync();
+        var allPids = await File.ReadAllLinesAsync(pidFile);
+
+        int startIndex = 0;
+        if (File.Exists(progressFile))
+            int.TryParse(await File.ReadAllTextAsync(progressFile), out startIndex);
+
+        for (int i = startIndex; i < allPids.Length; i++)
+        {
+            var pid = allPids[i].Trim();
+            if (string.IsNullOrWhiteSpace(pid))
+                continue;
+
+            try
+            {
+                Console.WriteLine($"[{i+1}/{allPids.Length}] Fetching {pid}");
+
+                var response = await cjClient.GetProductDetailAsync(pid);
+
+                if (response?.Data?.Variants == null)
+                {
+                    await Task.Delay(3000);
+                    i--;
+                    continue;
+                }
+
+                var skus = response.Data.Variants
+                    .Where(v => !string.IsNullOrWhiteSpace(v?.VariantSku))
+                    .Select(v => v!.VariantSku!);
+
+                await SaveNewVariantSkusAsync(skus, existingVariantSkus);
+
+                await File.WriteAllTextAsync(progressFile, i.ToString());
+
+                await Task.Delay(900); // rate limit protection
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+                await Task.Delay(5000);
+                i--;
+            }
+        }
+    }
+
+
+    static async Task RunCatalogCrawler(CJApiClient cjClient)
+    {
+        var productPidPath = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/productPid.txt";
+        var statePath = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/crawlState.json";
+
+        var state = await CrawlState.LoadCrawlStateAsync(statePath);
+
+        int startPage = state.LastEndPage + 1;
+        int endPage = startPage + 49;
+
+        Console.WriteLine($"Crawling pages {startPage} → {endPage}");
+
+        var pids = await cjClient.Get2500Pids(startPage,endPage,
+            async (completedPage) =>
+            {
+                state.LastEndPage = completedPage;
+                await CrawlState.SaveCrawlStateAsync(statePath, state);
+            },
+            async (discoveredPagePids) =>
+            {
+                await AppendNewPidsAsync(productPidPath, discoveredPagePids);
+            });
+    }
+
+
+    public static async Task<HashSet<string>> LoadVariantSkusAsync()
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (!File.Exists("/Users/nhck3001/Documents/GitHub/EbayAutomationService/variantSku.txt"))
+            return set;
+
+        var lines = await File.ReadAllLinesAsync("/Users/nhck3001/Documents/GitHub/EbayAutomationService/variantSku.txt");
+
+        foreach (var line in lines)
+        {
+            var sku = line.Trim();
+            if (!string.IsNullOrWhiteSpace(sku))
+                set.Add(sku);
+        }
+
+        Console.WriteLine($"Loaded {set.Count} existing variant SKUs");
+        return set;
+    }
+    public static async Task SaveNewVariantSkusAsync(IEnumerable<string> skus,HashSet<string> existingSet)
+    {
+        var newOnes = new List<string>();
+
+        foreach (var sku in skus)
+        {
+            if (string.IsNullOrWhiteSpace(sku))
+                continue;
+
+            var clean = sku.Trim();
+
+            // HashSet.Add returns true only if not already present
+            if (existingSet.Add(clean))
+                newOnes.Add(clean);
+        }
+
+        if (newOnes.Count == 0)
+            return;
+
+        await File.AppendAllLinesAsync("/Users/nhck3001/Documents/GitHub/EbayAutomationService/variantSku.txt", newOnes);
+
+        Console.WriteLine($"Saved {newOnes.Count} new variant SKUs");
+    }
+
+    public static async Task AppendNewPidsAsync(string filePath, IEnumerable<string> newPids)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
+
+        // Load existing PIDs into a Hashset to allow fast look up and remove duplicate
+        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (File.Exists(filePath))
+        {
+            var lines = await File.ReadAllLinesAsync(filePath);
+            foreach (var line in lines)
+            {
+                var pid = line.Trim();
+                if (!string.IsNullOrWhiteSpace(pid))
+                    existing.Add(pid);
+            }
+        }
+
+        // Find only new PIDs
+        var toAppend = new List<string>();
+        // Look through newly found Pids, append them if they are not already appended
+        foreach (var pid in newPids)
+        {
+            if (string.IsNullOrWhiteSpace(pid))
+                continue;
+            var clean = pid.Trim();
+            if (existing.Add(clean)) // HashSet.Add returns false if duplicate
+                toAppend.Add(clean);
+        }
+
+        if (toAppend.Count == 0)
+        {
+            Console.WriteLine("No new PIDs discovered.");
+            return;
+        }
+
+        await File.AppendAllLinesAsync(filePath, toAppend);
+
+        Console.WriteLine($"Added {toAppend.Count} new PIDs (Total known: {existing.Count})");
+    }
+
+
+
     public static async Task<JObject> GetItemViaTradingApi(string itemId, string appId, string certId, string devId, string ebayAuthToken)
     {
         var endpoint = "https://api.ebay.com/ws/api.dll";
@@ -168,6 +296,30 @@ class Program
 
         return result;
     }
+    public static async Task ExportProductSkusAsync(List<CjProductDetail> products, string filePath)
+    {
+        if (products == null || products.Count == 0)
+            return;
+
+        // remove nulls + duplicates
+        var skus = products
+            .Where(p => !string.IsNullOrWhiteSpace(p.ProductSku))
+            .Select(p => p.ProductSku!.Trim())
+            .Distinct()
+            .OrderBy(s => s)
+            .ToList();
+
+        // ensure directory exists
+        var dir = Path.GetDirectoryName(filePath);
+        if (!string.IsNullOrEmpty(dir))
+            Directory.CreateDirectory(dir);
+
+        // write file
+        await File.WriteAllLinesAsync(filePath, skus);
+
+        Console.WriteLine($"Exported {skus.Count} SKUs to {filePath}");
+    }
+
 
     public static string CleanUnicode(string input)
     {
