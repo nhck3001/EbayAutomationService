@@ -41,6 +41,11 @@ class Program
             case "skus":
                 await ExtractVariantSku(cjClient);
                 break;
+            
+            case "getUsSku":
+                await GetUsSku(cjClient);
+                break;
+
 
             default:
                 Console.WriteLine("Unknown command");
@@ -48,7 +53,90 @@ class Program
         }
 
     }
+    public static async Task GetUsSku(CJApiClient cjClient)
+    {
+        var inputFile = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/variantSku.txt";
+        var outputFile = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/qualifiedSkus.txt";
+        var progressFile = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/qualified_progress.txt";
 
+        if (!File.Exists(inputFile))
+        {
+            Console.WriteLine("variantSku.txt not found.");
+            return;
+        }
+
+        var allSkus = await File.ReadAllLinesAsync(inputFile);
+
+        // Load existing qualified SKUs (avoid duplicates)
+        var qualifiedSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (File.Exists(outputFile))
+        {
+            foreach (var line in await File.ReadAllLinesAsync(outputFile))
+            {
+                var s = line.Trim();
+                if (!string.IsNullOrWhiteSpace(s))
+                    qualifiedSet.Add(s);
+            }
+        }
+
+        // Resume support
+        int startIndex = 0;
+        if (File.Exists(progressFile))
+            int.TryParse(await File.ReadAllTextAsync(progressFile), out startIndex);
+
+        Console.WriteLine($"Starting at index {startIndex}");
+
+        for (int i = startIndex; i < allSkus.Length; i++)
+        {
+            var sku = allSkus[i].Trim();
+
+            if (string.IsNullOrWhiteSpace(sku))
+                continue;
+
+            try
+            {
+                Console.WriteLine($"[{i+1}/{allSkus.Length}] Checking {sku}");
+
+                var stock = await cjClient.GetStockBySkuAsync(sku);
+
+                if (stock?.Data == null)
+                {
+                    Console.WriteLine("Null stock response — retrying...");
+                    await Task.Delay(2500);
+                    i--;
+                    continue;
+                }
+
+                // QUALIFICATION RULE
+                bool hasUsStock = stock.Data.Any(w =>
+                    w.CountryCode == "US" &&
+                    w.TotalInventoryNum.HasValue &&
+                    w.TotalInventoryNum.Value > 0);
+
+                if (hasUsStock && qualifiedSet.Add(sku))
+                {
+                    await File.AppendAllLinesAsync(outputFile, new[] { sku });
+                    Console.WriteLine($"US STOCK ✔ {sku}");
+                }
+
+                // checkpoint every 20
+                if (i % 20 == 0)
+                    await File.WriteAllTextAsync(progressFile, i.ToString());
+
+                await Task.Delay(850); // CJ safe rate
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error on {sku}: {ex.Message}");
+                await Task.Delay(5000);
+                i--;
+            }
+        }
+
+        Console.WriteLine("Qualification job complete.");
+    }
+
+    // These extract Variant Sku from PIDs. Only variants within 15-80 is allowed
     static async Task ExtractVariantSku(CJApiClient cjClient)
     {
         var pidFile = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/productPid.txt";
@@ -75,7 +163,7 @@ class Program
 
             try
             {
-                Console.WriteLine($"[{i+1}/{allPids.Length}] Fetching {pid}");
+                Console.WriteLine($"[{i + 1}/{allPids.Length}] Fetching {pid}");
 
                 var response = await cjClient.GetProductDetailAsync(pid);
 
@@ -86,11 +174,16 @@ class Program
                     continue;
                 }
 
-                var skus = response.Data.Variants
-                    .Where(v => !string.IsNullOrWhiteSpace(v?.VariantSku))
+                var goodSkus = response.Data.Variants
+                    .Where(v =>
+                        v != null &&
+                        !string.IsNullOrWhiteSpace(v.VariantSku) &&
+                        v.VariantSellPrice >= 15m &&
+                        v.VariantSellPrice <= 80m)
                     .Select(v => v!.VariantSku!);
 
-                await SaveNewVariantSkusAsync(skus, existingVariantSkus);
+                await SaveNewVariantSkusAsync(goodSkus, existingVariantSkus);
+
 
                 await File.WriteAllTextAsync(progressFile, i.ToString());
 
