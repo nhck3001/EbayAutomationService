@@ -9,17 +9,6 @@ public class CjStockBySkuResponse
     public string RequestId { get; set; }
     public bool Success { get; set; }
 
-    // Check if a product is shipped from the US
-    bool HasUsStock(CjStockBySkuResponse response)
-    {
-        if (response?.Data == null)
-            return false;
-
-        return response.Data.Any(w =>
-            w.CountryCode == "US" &&
-            w.TotalInventoryNum.HasValue &&
-            w.TotalInventoryNum.Value > 0);
-    }
 
 }
 

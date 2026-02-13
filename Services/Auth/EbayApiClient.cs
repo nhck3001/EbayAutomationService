@@ -37,39 +37,16 @@ public class EbayApiClient
             request.Content!.Headers.Add("Content-Language", "en-US");
 
         }
-        var retryRequest = await CloneHttpRequestMessage(request);
         var response = await _client.SendAsync(request);
 
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
             await _tokenManager.ForceRefreshAsync();
             token = await _tokenManager.GetValidTokenAsync();
-            retryRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
             response = await _client.SendAsync(request);
         }
 
         return response;
-    }
-    private static async Task<HttpRequestMessage> CloneHttpRequestMessage(HttpRequestMessage request)
-    {
-        var clone = new HttpRequestMessage(request.Method, request.RequestUri);
-
-        // Copy request headers
-        foreach (var header in request.Headers)
-            clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
-
-        // Copy content (if any)
-        if (request.Content != null)
-        {
-            var contentBytes = await request.Content.ReadAsByteArrayAsync();
-            clone.Content = new ByteArrayContent(contentBytes);
-
-            foreach (var header in request.Content.Headers)
-                clone.Content.Headers.TryAddWithoutValidation(header.Key, header.Value);
-        }
-
-        return clone;
     }
 
 }
