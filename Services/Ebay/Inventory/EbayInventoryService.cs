@@ -58,7 +58,7 @@ public class EbayInventoryService
                 Console.WriteLine("Response:");
                 Console.WriteLine(responseText);
 
-                Console.WriteLine("❌ InventoryItem API error");
+                Console.WriteLine("InventoryItem API error");
                 Console.WriteLine($"SKU: {sku}");
                 Console.WriteLine($"Status: {(int)response.StatusCode} {response.StatusCode}");
                 Console.WriteLine("Request body:");
@@ -75,7 +75,7 @@ public class EbayInventoryService
         }
         catch (Exception ex)
         {
-            Console.WriteLine("🔥 Exception during InventoryItem creation");
+            Console.WriteLine("Exception during InventoryItem creation");
             Console.WriteLine($"SKU: {sku}");
             Console.WriteLine($"Message: {ex.Message}");
 

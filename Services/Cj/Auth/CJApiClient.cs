@@ -84,9 +84,8 @@ public class CJApiClient
         return result;
     }
 
-
+// CJJT274920501AZ
     // ---------- READ-ONLY ENDPOINTS ----------
-
 
     /// <summary>
     /// Get full product detail by pid
@@ -102,13 +101,25 @@ public class CJApiClient
         return GetAsync<CjProductListResponse>(endpoint);
     }
     // By Default, Loop through 50 page, 50 products each page to LOOK for PIDs only
-    public async Task<List<string>> Get2500Pids(
-        int startPage,
-        int endPage,
+    // shoe rack DONE
+    // shoe organizer DONE
+    // shoe storage DONE
+    // shoe cabinet
+    // shoe shelf
+    // shoe shelves
+    // shoe stand
+    // shoe holder
+    // shoe storage cabinet
+    // shoe storage rack
+    // shoe storage shelf
+    // shoe storage organizer
+    public async Task<List<string>> GetPids(
+        int startPage = 1,
+        int endPage = 100,
         Func<int, Task>? saveCompletedPage = null,
         Func<List<string>, Task>? savedDiscoveredPids = null,
         int pageSize = 50,
-        string categoryId = "87CF251F-8D11-4DE0-A154-9694D9858EB3")
+        string productName = "shoe storage")
     {
         var pids = new List<string>();
 
@@ -116,7 +127,7 @@ public class CJApiClient
         {
             Console.WriteLine($"Scanning page {page}...");
 
-            var response = await GetAsync<CjProductListResponse>($"product/list?warehouseCode=US&categoryId={categoryId}&pageNum={page}&pageSize={pageSize}");
+            var response = await GetAsync<CjProductListResponse>($"product/list?warehouseCode=US&productNameEn={productName}&pageNum={page}&pageSize={pageSize}&verifiedWarehouse=1&startInventory=20&deliveryTime=72");
 
             if (response?.Data?.List == null || response.Data.List.Count == 0)
             {
@@ -128,8 +139,11 @@ public class CJApiClient
 
             foreach (var product in pageUsProducts)
             {
-                if (!string.IsNullOrWhiteSpace(product.Pid))
+                if ( !string.IsNullOrWhiteSpace(product.Pid))
+                {
                     pids.Add(product.Pid);
+                }
+                
             }
             if (savedDiscoveredPids != null)
                 await savedDiscoveredPids(pids);

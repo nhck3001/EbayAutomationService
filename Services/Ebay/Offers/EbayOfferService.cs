@@ -75,7 +75,13 @@ public class EbayOfferService
             var offerId = json["offerId"]!.ToString();
             return offerId;
         }
-
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"eBay API error: {response.StatusCode}");
+                Console.WriteLine($"Response: {errorContent}");
+                throw new HttpRequestException($"eBay API request failed with status code {response.StatusCode}. Response: {errorContent}");
+            }
         else
         {
             Console.WriteLine("CreateOffer failed:");
@@ -101,6 +107,8 @@ public class EbayOfferService
 
             throw new HttpRequestException("CreateOffer failed");
         }
+
+        
     }
 
 
