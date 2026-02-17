@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using EbayAutomationService.Models;
 using Newtonsoft.Json;
 
 public class CJApiClient
@@ -61,9 +62,11 @@ public class CJApiClient
 
             var response = await _httpClient.GetAsync(endpoint);
             var body = await response.Content.ReadAsStringAsync();
-
+            // Http error handling
             if (!response.IsSuccessStatusCode)
-                throw new Exception($"CJ HTTP error: {body}");
+            {
+                throw new Exception($"CJ HTTP error: {body}");                
+            }
 
             using var doc = JsonDocument.Parse(body);
             if (doc.RootElement.TryGetProperty("code", out var codeEl))
@@ -73,27 +76,36 @@ public class CJApiClient
                     throw new Exception($"CJ API error {code}: {body}");
             }
 
-            result = JsonConvert.DeserializeObject<T>(body)!;
-        });
+            try
+            {
+                result = JsonConvert.DeserializeObject<T>(body)!;
+            }
+            catch (Newtonsoft.Json.JsonException ex)
+            {
+                // Log the error
+                Console.WriteLine($"[ERROR] Failed to deserialize response to {typeof(T).Name}: {ex.Message}");
+                Console.WriteLine($"[ERROR] Response body: {body}");
+                
+                // Return default value for T (null for reference types)
+                result = default!;
+                
+                // Or throw a more meaningful exception
+                throw new Exception($"Failed to parse CJ API response to {typeof(T).Name}", ex);
+            }
+                    });
 
         return result;
     }
 
-// CJJT274920501AZ
     // ---------- READ-ONLY ENDPOINTS ----------
 
     /// <summary>
     /// Get full product detail by pid
     /// </summary>
-    public Task<CjProductSingleResponse> GetProductDetailAsync(string pid)
+    public Task<CjProductDetailResponse> GetProductDetailAsync(string pid)
     {
         var endpoint = $"product/query?pid={pid}";
-        return GetAsync<CjProductSingleResponse>(endpoint);
-    }
-    public Task<CjProductListResponse> GetCategoryTreeAsync()
-    {
-        var endpoint = $"product/getCategory";
-        return GetAsync<CjProductListResponse>(endpoint);
+        return GetAsync<CjProductDetailResponse>(endpoint);
     }
     // By Default, Loop through 50 page, 50 products each page to LOOK for PIDs only
     // shoe rack DONE
@@ -109,9 +121,9 @@ public class CJApiClient
     // shoe storage shelf
     // shoe storage organizer
     public async Task<List<string>> GetPids(
-        string productName = "shoe storage",
-        int page = 1,
-        int size = 50,
+        string productName = "shoestorage",
+        int page = 100,
+        int size = 100,
         int addMarkStatus = 1 // Free Shipping
         )
     {
@@ -121,32 +133,32 @@ public class CJApiClient
         {
             Console.WriteLine($"Scanning page {currentPage}...");
 
-            var response = await GetAsync<CjProductListResponse>($"product/listV2?" +
-                                                                $"keyword={productName}&" + 
-                                                                $"page={page}&" +
-                                                                "countryCode =US&" +
+            var response = await GetAsync<CjProductListV2Response>($"product/listV2?" +
+                                                                $"keyWord={productName}&" + 
+                                                                $"page={currentPage}&" +
+                                                                "countryCode=US&" +
                                                                 $"addMarkStatus={addMarkStatus}&" +
                                                                 $"size={size}&" +
                                                                 "verifiedWarehouse=1&" +
                                                                 "startWarehouseInventory=20&" 
                                                                 );
-
-            if (response?.Data?.List == null || response.Data.List.Count == 0)
+            var x = 10;
+            if (response?.Data?.Content == null || response.Data.Content.Count == 0)
             {
                 Console.WriteLine("No products returned. Possibly end of category.");
                 break;
             }
 
-            var pageUsProducts = response.Data.List.Where(p => p.ShippingCountryCodes != null && p.ShippingCountryCodes.Contains("US"));
-
-            foreach (var product in pageUsProducts)
-            {
-                if ( !string.IsNullOrWhiteSpace(product.Pid))
-                {
-                    pids.Add(product.Pid);
-                }
-                
-            }
+            //var pageUsProducts = response.Data.Content. .Where(p => p.ShippingCountryCodes != null && p.ShippingCountryCodes.Contains("US"));
+//
+            //foreach (var product in pageUsProducts)
+            //{
+            //    if ( !string.IsNullOrWhiteSpace(product.Pid))
+            //    {
+            //        pids.Add(product.Pid);
+            //    }
+            //    
+            //}
 
             // small delay protects CJ token
             await Task.Delay(600);
