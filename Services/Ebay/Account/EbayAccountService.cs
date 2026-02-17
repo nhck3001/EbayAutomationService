@@ -1,7 +1,4 @@
 // This class is needed for setting up only, not needed during operation
-using System.Text;
-using EbayAutomationService.Domain.Enums;
-using EbayAutomationService.Infrastructure.Ebay.Mappers;
 using EbayAutomationService.Services;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -14,35 +11,39 @@ public class EbayAccountService
     {
         _api = api;
     }
-  /// <summary>
-  /// Opt in to seller program. This is a prerequisite to be able to create listings through InventoryAPI
-  /// </summary>
-  /// <param name=""></param>
-  /// <returns></returns>
-  /// <exception cref="HttpRequestException"></exception>
-  public async Task optInBusinessSellerProgram(EbayProgramType ebayProgramType)
-  {
-      var body = new
-      {
-          programType = EbayProgramTypeMapper.ToApiValue(ebayProgramType),
-      };
+    /// <summary>
+    /// Opt in to seller program. This is a prerequisite to be able to create listings through InventoryAPI
+    /// </summary>
+    /// <param name=""></param>
+    /// <returns></returns>
+    /// <exception cref="HttpRequestException"></exception>
+    ///  EbayProgramType.OutOfStockControl => "OUT_OF_STOCK_CONTROL",
+    ///  EbayProgramType.PartnerMotorsDealer => "PARTNER_MOTORS_DEALER",
+    /// EbayProgramType.SellingPolicyManagement => "SELLING_POLICY_MANAGEMENT",
+  
+  public async Task optInBusinessSellerProgram(string ebayProgramType = "SELLING_POLICY_MANAGEMENT")
+    {
+        var body = new
+        {
+            programType = ebayProgramType,
+        };
 
-      HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.sandbox.ebay.com/sell/account/v1/program/opt_in");
-      var json = JsonConvert.SerializeObject(body);
-      var response = await _api.SendAsync(request, json,true);
-      var responseJson = await response.Content.ReadAsStringAsync();
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.sandbox.ebay.com/sell/account/v1/program/opt_in");
+        var json = JsonConvert.SerializeObject(body);
+        var response = await _api.SendAsync(request, json, true);
+        var responseJson = await response.Content.ReadAsStringAsync();
 
-      if (!response.IsSuccessStatusCode)
-      {
+        if (!response.IsSuccessStatusCode)
+        {
 
-          // Throws a more informative exception, including the HTTP status code
-          throw new HttpRequestException(
-              $"eBay API request failed with status code {response.StatusCode}. Response: {response.Content}",
-              null,
-              response.StatusCode
-          );
-      }
-  }
+            // Throws a more informative exception, including the HTTP status code
+            throw new HttpRequestException(
+                $"eBay API request failed with status code {response.StatusCode}. Response: {response.Content}",
+                null,
+                response.StatusCode
+            );
+        }
+    }
   /// <summary>
   /// This method gets a list of the seller programs that the seller has opted-in to.
   /// </summary>
