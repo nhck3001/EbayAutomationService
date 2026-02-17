@@ -1,3 +1,14 @@
+// Model for ResponseFrom Cj that includes a product list
+public class CjProductDetailResponse
+{
+    public int Code { get; set; }
+    public bool Result { get; set; }
+    public string Message { get; set; }
+    // Inside here is additional info + PRODUCT DATA
+    public CjProductDetail Data { get; set; }
+
+    public string RequestId { get; set; }
+}
 // Model for each individual product
 public class CjProductDetail
 {
@@ -12,10 +23,10 @@ public class CjProductDetail
 
     public string? ProductImage { get; set; }
 
-    // ❌ NOT decimal (ranges like "2.09 -- 7.46")
+    // NOT decimal (ranges like "2.09 -- 7.46")
     public string? SellPrice { get; set; } // WIll be mapped to Price
 
-    // ❌ NOT decimal (ranges like "10.00-50.00")
+    // NOT decimal (ranges like "10.00-50.00")
     public string? ProductWeight { get; set; }
 
     public string? ProductType { get; set; }
@@ -60,9 +71,31 @@ public class CjProductDetail
     public string? MaterialNameEn { get; set; }
 
     public string? PackWeight { get; set; }
-    
-    public string? ProductKeyEn{ get; set; }
+
+    public string? ProductKeyEn { get; set; }
 }
+
+public class CjVariant
+{
+    public string? Vid { get; set; }
+    public string? Pid { get; set; }
+    public string? VariantNameEn { get; set; }
+    public string? VariantProperty { get; set; }
+    public string? VariantSku { get; set; }
+    public string? VariantImage { get; set; }
+    public string? VariantKey { get; set; } // e.g. "White"
+
+    public decimal? VariantSellPrice { get; set; }
+    public double? VariantWeight { get; set; }
+
+    public int? VariantLength { get; set; }
+    public int? VariantWidth { get; set; }
+    public int? VariantHeight { get; set; }
+
+    public string? VariantStandard { get; set; }
+    
+}
+
 
 
  

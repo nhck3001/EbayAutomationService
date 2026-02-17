@@ -109,20 +109,27 @@ public class CJApiClient
     // shoe storage shelf
     // shoe storage organizer
     public async Task<List<string>> GetPids(
-        int startPage = 1,
-        int endPage = 100,
-        Func<int, Task>? saveCompletedPage = null,
-        Func<List<string>, Task>? savedDiscoveredPids = null,
-        int pageSize = 50,
-        string productName = "shoe storage")
+        string productName = "shoe storage",
+        int page = 1,
+        int size = 50,
+        int addMarkStatus = 1 // Free Shipping
+        )
     {
         var pids = new List<string>();
 
-        for (int page = startPage; page <= endPage; page++)
+        for (int currentPage = 1; currentPage <= page; currentPage++)
         {
-            Console.WriteLine($"Scanning page {page}...");
+            Console.WriteLine($"Scanning page {currentPage}...");
 
-            var response = await GetAsync<CjProductListResponse>($"product/list?warehouseCode=US&productNameEn={productName}&pageNum={page}&pageSize={pageSize}&verifiedWarehouse=1&startInventory=20&deliveryTime=72");
+            var response = await GetAsync<CjProductListResponse>($"product/listV2?" +
+                                                                $"keyword={productName}&" + 
+                                                                $"page={page}&" +
+                                                                "countryCode =US&" +
+                                                                $"addMarkStatus={addMarkStatus}&" +
+                                                                $"size={size}&" +
+                                                                "verifiedWarehouse=1&" +
+                                                                "startWarehouseInventory=20&" 
+                                                                );
 
             if (response?.Data?.List == null || response.Data.List.Count == 0)
             {
@@ -140,11 +147,6 @@ public class CJApiClient
                 }
                 
             }
-            if (savedDiscoveredPids != null)
-                await savedDiscoveredPids(pids);
-            // checkpoint after each page
-            if (saveCompletedPage != null)
-                await saveCompletedPage(page);
 
             // small delay protects CJ token
             await Task.Delay(600);
