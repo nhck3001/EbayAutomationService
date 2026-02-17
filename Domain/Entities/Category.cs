@@ -9,5 +9,5 @@ public class Category
     public string Keyword { get; set; } = null!;
 
     // Navigation
-    public ICollection<ProductPid> ProductPids { get; set; } = new List<ProductPid>();
+    public ICollection<DirtySku> DirtySkus { get; set; } = new List<DirtySku>();
 }

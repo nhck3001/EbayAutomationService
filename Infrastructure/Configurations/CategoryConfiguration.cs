@@ -21,7 +21,7 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
         // Each product Pid belong to 1 Category
         // Foreign key is CategoryId in ProductPids table
         // If a category is deleted, all of related Pids are also deleted
-        builder.HasMany(x => x.ProductPids).WithOne(x => x.Category).HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasMany(x => x.DirtySkus).WithOne(x => x.Category).HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Cascade);
         
     }
 }

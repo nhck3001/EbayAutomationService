@@ -1,5 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
+using EbayAutomationService.Helper;
 using EbayAutomationService.Models;
 using Newtonsoft.Json;
 
@@ -127,7 +128,7 @@ public class CJApiClient
         int addMarkStatus = 1 // Free Shipping
         )
     {
-        var pids = new List<string>();
+        var skus = new List<string>();
 
         for (int currentPage = 1; currentPage <= page; currentPage++)
         {
@@ -142,29 +143,27 @@ public class CJApiClient
                                                                 "verifiedWarehouse=1&" +
                                                                 "startWarehouseInventory=20&" 
                                                                 );
-            var x = 10;
-            if (response?.Data?.Content == null || response.Data.Content.Count == 0)
+
+            if (response?.Data?.Content[0].ProductList == null || response.Data.Content[0].ProductList.Count == 0)
             {
                 Console.WriteLine("No products returned. Possibly end of category.");
                 break;
             }
-
-            //var pageUsProducts = response.Data.Content. .Where(p => p.ShippingCountryCodes != null && p.ShippingCountryCodes.Contains("US"));
-//
-            //foreach (var product in pageUsProducts)
-            //{
-            //    if ( !string.IsNullOrWhiteSpace(product.Pid))
-            //    {
-            //        pids.Add(product.Pid);
-            //    }
-            //    
-            //}
-
-            // small delay protects CJ token
+            // Check if product is likely a shoe organizer
+            var productList = response.Data.Content[0].ProductList;
+            foreach (var product in productList)
+            {
+                var productNameEn = product.NameEn;
+                if (Helper.IsLikelyShoeOrganizer(productNameEn))
+                {
+                    skus.Add(product.Sku);
+                } 
+            }
+            // save to the database
             await Task.Delay(600);
         }
 
-        return pids;
+        return skus;
     }
 
     public async Task<CjStockBySkuResponse> GetStockBySkuAsync(string variantSku)

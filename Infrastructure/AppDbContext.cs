@@ -10,7 +10,7 @@ public class AppDbContext : DbContext
     // Each DbSet<T> is a database table that can be queries
     // The => Set<T>() is a shorthand that returns the DbSet for that entity type.
     public DbSet<Category> Categories => Set<Category>();
-    public DbSet<ProductPid> ProductPids => Set<ProductPid>();
+    public DbSet<DirtySku> DirtySkus => Set<DirtySku>();
     public DbSet<Sku> Skus => Set<Sku>();
     public DbSet<Listing> Listings => Set<Listing>();
 
@@ -20,7 +20,7 @@ public class AppDbContext : DbContext
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.ApplyConfiguration(new CategoryConfiguration());
-        modelBuilder.ApplyConfiguration(new ProductPidConfiguration());
+        modelBuilder.ApplyConfiguration(new DirtySkuConfiguration());
         modelBuilder.ApplyConfiguration(new SkuConfiguration());
         modelBuilder.ApplyConfiguration(new ListingConfiguration());
     }

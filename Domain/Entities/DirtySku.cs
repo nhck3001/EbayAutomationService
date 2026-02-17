@@ -1,9 +1,9 @@
 
-public class ProductPid
+public class DirtySku
 {
     public int Id { get; set; }
 
-    public string Pid { get; set; } = null!;
+    public string Sku { get; set; } = null!;
 
     public int CategoryId { get; set; }
 
