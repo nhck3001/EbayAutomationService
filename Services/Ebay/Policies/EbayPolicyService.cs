@@ -10,21 +10,17 @@ public class EbayPolicyService
     {
         _api = api;
     }
-    private static string FindPolicyId(
-    string json,
-    string arrayName,
-    string idField,
-    string policyName)
-{
-    var policies = JObject.Parse(json)[arrayName]!;
-    foreach (var policy in policies)
+    private static string FindPolicyId(string json,string arrayName,string idField,string policyName)
     {
-        if (policy["name"]?.ToString() == policyName)
-            return policy[idField]!.ToString();
-    }
+        var policies = JObject.Parse(json)[arrayName]!;
+        foreach (var policy in policies)
+        {
+            if (policy["name"]?.ToString() == policyName)
+                return policy[idField]!.ToString();
+        }
 
-    throw new Exception($"{idField} not found for policy '{policyName}'");
-}
+        throw new Exception($"{idField} not found for policy '{policyName}'");
+    }
 
 
     /// <summary>

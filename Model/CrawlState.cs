@@ -6,7 +6,9 @@ public class CrawlState
     public static async Task<CrawlState> LoadCrawlStateAsync(string path)
     {
         if (!File.Exists(path))
+        {
             return new CrawlState();
+        }
 
         var json = await File.ReadAllTextAsync(path);
         return JsonConvert.DeserializeObject<CrawlState>(json) ?? new CrawlState();
