@@ -15,3 +15,12 @@ obj/
 
 # Logs
 *.log
+
+# TxtFile
+*.txt
+
+# Jsonl files
+.*jsonl
+
+# Json files
+*.json
