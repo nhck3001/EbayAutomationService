@@ -17,9 +17,9 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.Property(categoryObject => categoryObject.Keyword).HasColumnName("keyword").IsRequired();
         // Create unique index of ebay_category_id
         builder.HasIndex(categoryObject=> categoryObject.EbayCategoryId).IsUnique();
-        // Relationship between Category and ProductPids is 1 to many
-        // Each product Pid belong to 1 Category
-        // Foreign key is CategoryId in ProductPids table
+        // Relationship between Category and DirtySkus is 1 to many
+        // Each product SKU belong to 1 Category
+        // Foreign key is EbayCategoryId in DirtySkus table
         // If a category is deleted, all of related Pids are also deleted
         builder.HasMany(x => x.DirtySkus).WithOne(x => x.Category).HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Cascade);
         

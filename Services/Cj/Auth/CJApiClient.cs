@@ -2,7 +2,9 @@ using System.Net.Http.Headers;
 using System.Text.Json;
 using EbayAutomationService.Helper;
 using EbayAutomationService.Models;
+using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
+using Npgsql;
 
 public class CJApiClient
 {
@@ -12,6 +14,7 @@ public class CJApiClient
     private static readonly SemaphoreSlim _rateLimiter = new(1, 1);
     private static DateTime _lastRequestTime = DateTime.MinValue;
     private const string BaseUrl = "https://developers.cjdropshipping.com/api2.0/v1/";
+    private AppDbContext _appDbContext;
 
     // Make sure every API request is called no more often than every 1.1 s
     // Because Cj QPS is 1 per second. This is global.
@@ -36,9 +39,11 @@ public class CJApiClient
         }
     }
 
-    public CJApiClient(HttpClient httpClient, CjTokenManager tokenManager)
+    public CJApiClient(HttpClient httpClient, CjTokenManager tokenManager, AppDbContext appDbContext)
     {
         _tokenManager = tokenManager;
+        _appDbContext = appDbContext;
+
         _httpClient = httpClient;
         _httpClient.BaseAddress = new Uri(BaseUrl);
         _httpClient.Timeout = TimeSpan.FromSeconds(30);
@@ -66,7 +71,7 @@ public class CJApiClient
             // Http error handling
             if (!response.IsSuccessStatusCode)
             {
-                throw new Exception($"CJ HTTP error: {body}");                
+                throw new Exception($"CJ HTTP error: {body}");
             }
 
             using var doc = JsonDocument.Parse(body);
@@ -86,14 +91,14 @@ public class CJApiClient
                 // Log the error
                 Console.WriteLine($"[ERROR] Failed to deserialize response to {typeof(T).Name}: {ex.Message}");
                 Console.WriteLine($"[ERROR] Response body: {body}");
-                
+
                 // Return default value for T (null for reference types)
                 result = default!;
-                
+
                 // Or throw a more meaningful exception
                 throw new Exception($"Failed to parse CJ API response to {typeof(T).Name}", ex);
             }
-                    });
+        });
 
         return result;
     }
@@ -122,7 +127,9 @@ public class CJApiClient
     // shoe storage shelf
     // shoe storage organizer
     public async Task<List<string>> GetPids(
-        string productName = "shoestorage",
+        int ebayCategoryId,
+        string productName,
+        Func<string, bool> productFilter,
         int page = 100,
         int size = 100,
         int addMarkStatus = 1 // Free Shipping
@@ -135,13 +142,13 @@ public class CJApiClient
             Console.WriteLine($"Scanning page {currentPage}...");
 
             var response = await GetAsync<CjProductListV2Response>($"product/listV2?" +
-                                                                $"keyWord={productName}&" + 
+                                                                $"keyWord={productName}&" +
                                                                 $"page={currentPage}&" +
                                                                 "countryCode=US&" +
                                                                 $"addMarkStatus={addMarkStatus}&" +
                                                                 $"size={size}&" +
                                                                 "verifiedWarehouse=1&" +
-                                                                "startWarehouseInventory=20&" 
+                                                                "startWarehouseInventory=20&"
                                                                 );
 
             if (response?.Data?.Content[0].ProductList == null || response.Data.Content[0].ProductList.Count == 0)
@@ -149,15 +156,17 @@ public class CJApiClient
                 Console.WriteLine("No products returned. Possibly end of category.");
                 break;
             }
-            // Check if product is likely a shoe organizer
+            // Check if product is likely a {productName)
             var productList = response.Data.Content[0].ProductList;
             foreach (var product in productList)
             {
                 var productNameEn = product.NameEn;
-                if (Helper.IsLikelyShoeOrganizer(productNameEn))
+                if (productFilter(productNameEn))
                 {
-                    skus.Add(product.Sku);
-                } 
+                    // If the product is likely a {productName}
+                    // Save it to the database
+                    await SaveDirtySkuAsync(product.Sku, ebayCategoryId);
+                }
             }
             // save to the database
             await Task.Delay(600);
@@ -170,6 +179,34 @@ public class CJApiClient
     {
         return await GetAsync<CjStockBySkuResponse>($"product/stock/queryBySku?sku={variantSku}");
     }
+
+    private async Task SaveDirtySkuAsync(string sku, int categoryIdFromCategoryTable)
+    {
+        // Each field of dirtySku maps to a column in the table
+        var dirtySku = new DirtySku
+        {
+            Sku = sku,
+            CategoryId = categoryIdFromCategoryTable, // CategoryId is Fk to Category table 
+            Processed = false
+        };
+
+        try
+        {
+            _appDbContext.DirtySkus.Add(dirtySku);
+            await _appDbContext.SaveChangesAsync();
+        }
+
+        catch(DbUpdateException ex)
+        {
+            // 23505 = duplicate key violation
+            // Safe to ignore
+            if (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
+            {
+                Console.WriteLine("Duplicate key. Move on");
+            } 
+        }
+    }
+
 
 
 }
