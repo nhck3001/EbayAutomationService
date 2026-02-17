@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
+namespace EbayAutomationService.Infrastructure;
 public class ListingConfiguration : IEntityTypeConfiguration<Listing>
 {
     public void Configure(EntityTypeBuilder<Listing> builder)

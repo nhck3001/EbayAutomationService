@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
+namespace EbayAutomationService.Infrastructure;
 public class SkuConfiguration : IEntityTypeConfiguration<Sku>
 {
     public void Configure(EntityTypeBuilder<Sku> builder)

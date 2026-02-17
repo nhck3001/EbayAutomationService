@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
+namespace EbayAutomationService.Infrastructure;
 public class ProductPidConfiguration : IEntityTypeConfiguration<ProductPid>
 {
     public void Configure(EntityTypeBuilder<ProductPid> builder)
