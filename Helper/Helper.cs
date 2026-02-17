@@ -1,6 +1,7 @@
 using Newtonsoft.Json.Linq;
 
-public static class CategoryHelper
+namespace EbayAutomationService.Helper;
+public static class Helper
 {
     // Check if a product is likely a shoe organizer
     public static bool IsLikelyShoeOrganizer(string? name)
