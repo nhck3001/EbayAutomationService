@@ -1,3 +1,4 @@
+using EbayAutomationService.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 
 // This class acts as a bridge between C# code and database
