@@ -2,18 +2,18 @@
 public class CjProductDetail
 {
     // IDs are huge → string
-    public string? Pid { get; set; }
+    public string? Pid { get; set; } // Will be mapped to SKU
 
     // NOTE: productName is actually a JSON string that contains a JSON array
     public string? ProductName { get; set; }
 
-    public string? ProductNameEn { get; set; }
+    public string? ProductNameEn { get; set; } // Will be mapped to Title
     public string? ProductSku { get; set; }
 
     public string? ProductImage { get; set; }
 
     // ❌ NOT decimal (ranges like "2.09 -- 7.46")
-    public string? SellPrice { get; set; }
+    public string? SellPrice { get; set; } // WIll be mapped to Price
 
     // ❌ NOT decimal (ranges like "10.00-50.00")
     public string? ProductWeight { get; set; }
@@ -46,6 +46,7 @@ public class CjProductDetail
     public List<string>? ShippingCountryCodes { get; set; }
 
     public string? ThreeCategoryName { get; set; }
+
     public string? TwoCategoryId { get; set; }
     public string? TwoCategoryName { get; set; }
     public string? OneCategoryId { get; set; }
@@ -53,4 +54,15 @@ public class CjProductDetail
 
     public int? CustomizationVersion { get; set; }
     public bool? IsTestProduct { get; set; }
+    public List<CjVariant>? Variants { get; set; }
+    public string? Description { get; set; }
+
+    public string? MaterialNameEn { get; set; }
+
+    public string? PackWeight { get; set; }
+    
+    public string? ProductKeyEn{ get; set; }
 }
+
+
+ 
