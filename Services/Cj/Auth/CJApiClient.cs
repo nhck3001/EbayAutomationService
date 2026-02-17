@@ -34,18 +34,13 @@ public class CJApiClient
         }
     }
 
-    public CJApiClient(CjTokenManager tokenManager)
+    public CJApiClient(HttpClient httpClient, CjTokenManager tokenManager)
     {
         _tokenManager = tokenManager;
-
-        _httpClient = new HttpClient
-        {
-            BaseAddress = new Uri(BaseUrl),
-            Timeout = TimeSpan.FromSeconds(30)
-        };
-
-        _httpClient.DefaultRequestHeaders.Accept.Add(
-            new MediaTypeWithQualityHeaderValue("application/json")
+        _httpClient = httpClient;
+        _httpClient.BaseAddress = new Uri(BaseUrl);
+        _httpClient.Timeout = TimeSpan.FromSeconds(30);
+        _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json")
         );
     }
     // remove header and add it again, incase access token is updated
