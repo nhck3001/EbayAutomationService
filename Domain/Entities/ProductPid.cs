@@ -1,4 +1,3 @@
-namespace EbayAutomation.Model.Database;
 
 public class ProductPid
 {

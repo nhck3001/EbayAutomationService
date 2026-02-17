@@ -1,4 +1,4 @@
-namespace EbayAutomation.Model.Database;
+
 
 public class Category
 {

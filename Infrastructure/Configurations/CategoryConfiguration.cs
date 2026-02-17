@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using EbayAutomation.Model.Database;
 
 public class CategoryConfiguration : IEntityTypeConfiguration<Category>
 {
@@ -23,5 +22,6 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
         // Foreign key is CategoryId in ProductPids table
         // If a category is deleted, all of related Pids are also deleted
         builder.HasMany(x => x.ProductPids).WithOne(x => x.Category).HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Cascade);
+        
     }
 }

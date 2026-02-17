@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using EbayAutomation.Model.Database;
 
 public class ProductPidConfiguration : IEntityTypeConfiguration<ProductPid>
 {
