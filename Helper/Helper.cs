@@ -1,6 +1,7 @@
 using Newtonsoft.Json.Linq;
 
 namespace EbayAutomationService.Helper;
+
 public static class Helper
 {
     public static string GetAspectJson()
@@ -43,7 +44,8 @@ public static class Helper
     //RECOMMENDED ASPECTS:
     //- Material (Type: STRING)
     //- Mounting (Type: STRING)
-    public static async Task<string> LoadAspectsForPrompt(string ebayCategoryId)
+    public static async Task<string> LoadAspectsForPrompt(string ebayCategoryId, string aspect = "RequiredAspects")
+
     {
         //Check if file exists
         if (!File.Exists(GetAspectJson()))
@@ -62,33 +64,38 @@ public static class Helper
             throw new Exception("Category not found in aspects.json");
         }
         // Get requiredAspects and recommendedAspects
-        var requiredAspects = chosenCategory["RequiredAspects"] as JArray;
-        var recommendedAspects = chosenCategory["RecommendedAspects"] as JArray;
+        var aspects = chosenCategory[aspect] as JArray;
         // Check if both exist
-        if (requiredAspects == null || requiredAspects.Count == 0)
+        if (aspects == null || aspects.Count == 0)
         {
-            throw new Exception($"Required aspects section section missing or empty.");
-        }
-        if (recommendedAspects == null || recommendedAspects.Count == 0)
-        {
-            throw new Exception($"Required aspects section section missing or empty.");
+            throw new Exception($"{aspect} section section missing or empty.");
         }
         // Start to form the output string. Required Aspects section
         var formattedAspects = new List<string>();
-        formattedAspects.Add("REQUIRED ASPECTS:");
-        foreach (var jsonObject in requiredAspects)
-        {
-            formattedAspects.Add($"- {jsonObject["Name"]} (Type: {jsonObject["ValueType"]})");
-        }
-        //form the output string. Recommended Aspects section
-        formattedAspects.Add("");
-        formattedAspects.Add("RECOMMENDED ASPECTS:");
 
-        foreach (var jsonObject in recommendedAspects)
+        if (aspect == "RequiredAspects")
+        {
+            formattedAspects.Add("REQUIRED ASPECTS:");
+        }
+        else
+        {
+            formattedAspects.Add("RECOMMENDED ASPECTS:");
+
+        }
+        foreach (var jsonObject in aspects)
         {
             formattedAspects.Add($"- {jsonObject["Name"]} (Type: {jsonObject["ValueType"]})");
         }
-        // Combine all bullet points with line breaks
         return string.Join(Environment.NewLine, formattedAspects);
+    }
+
+    public static async Task<String> GetEbayCategoryName(string ebayCategoryId)
+    {
+        var fullJson = await File.ReadAllTextAsync(GetAspectJson());
+        // Get the correct category
+        var obj = JObject.Parse(fullJson);
+        var categoriesList = obj["Categories"] as JArray;
+        var categoryName = categoriesList?.FirstOrDefault(category => category["EbayCategoryId"]?.ToString() == ebayCategoryId)["Name"].ToString();
+        return categoryName;
     }
 };

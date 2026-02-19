@@ -1,26 +1,63 @@
 ﻿using EbayAutomationService.Services;
 using DotNetEnv;
-using System.ComponentModel.DataAnnotations;
-using Microsoft.VisualBasic;
-using System.Linq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using System.Text;
-using System.Xml.Linq;
-using System.Globalization;
-using System.Text.RegularExpressions;
-using System.Diagnostics.CodeAnalysis;
+using Microsoft.EntityFrameworkCore;
+using EbayAutomationService.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Logging;
+using EbayAutomationService.Helper;
+using EbayAutomationService.Domain;
+using Npgsql;
+// 43506clear
 
 class Program
 {
     static async Task Main(string[] args)
     {
-        // Load .env file
-        Env.Load("/Users/nhck3001/Documents/GitHub/EbayAutomationService/file.env");
-        var cjRefreshToken = Environment.GetEnvironmentVariable("CJ_REFRESH_TOKEN");
-        var CjAuthService = new CjAuthService(cjRefreshToken!);
-        var cjTokenManager = new CjTokenManager(CjAuthService);
-        var cjClient = new CJApiClient(cjTokenManager);
+        // Host.CreateDefaultBuilder(args) -> Load json from appsettings.json into memory as a Dictionary.
+        // context give you configuration + environment info. Ex: context.Configuration["ConnectionStrings:DefaultConnection"]
+        // services is a dependency injection container
+        var host = Host.CreateDefaultBuilder(args)
+            .ConfigureServices((context, services) =>
+            {
+                // Register the database context
+                // Whenever AppDbContext is needed, created using this connection string 'context.Configuration.GetConnectionString("DefaultConnection")'
+                services.AddDbContext<AppDbContext>(options => options.UseNpgsql(context.Configuration.GetConnectionString("DefaultConnection")));
+                // Add a custom service DatabaseTestService.
+                // Whenever a DatabaseTestService object is needed, automatically create it
+                services.AddScoped<DatabaseTestService>();
+                // Load environment variables
+                Env.Load("/Users/nhck3001/Documents/GitHub/EbayAutomationService/file.env");
+                // Register all  services with DI container
+                // Services will look for dependencies and inject them automatically
+                // For example, will inject CjAuthService to CjTokenManager automatically
+                services.AddScoped<CjAuthService>(sp => new CjAuthService(Environment.GetEnvironmentVariable("CJ_REFRESH_TOKEN")!));
+
+                services.AddScoped<CjTokenManager>();
+                services.AddHttpClient<CJApiClient>();
+                services.AddHttpClient<EbayApiClient>(); // HttpClient automatically managed
+
+                services.AddScoped<EbayAuthService>(sp =>
+                    new EbayAuthService(
+                        Environment.GetEnvironmentVariable("APP_ID")!,
+                        Environment.GetEnvironmentVariable("CLIENT_SECRET")!,
+                        Environment.GetEnvironmentVariable("EBAY_REFRESH_TOKEN")!
+                    ));
+
+                services.AddScoped<EbayTokenManager>();
+                services.AddScoped<EbayCategoryService>();
+                services.AddScoped<DeepSeekClient>(sp => new DeepSeekClient(Environment.GetEnvironmentVariable("DEEPSEEK_API_KEY")!));
+
+                services.AddScoped<EbayInventoryService>();
+                services.AddScoped<EbayOfferService>();
+                services.AddScoped<EbayPolicyService>();
+                services.AddScoped<DatabaseTestService>();
+            })
+            .Build();
+
         // Parse arguments and decide which job to run
         if (args.Length == 0)
         {
@@ -31,433 +68,321 @@ class Program
         }
 
         var job = args[0].ToLower();
-
         switch (job)
         {
             case "crawl":
-                await RunCatalogCrawler(cjClient);
+                // Create a scope for a service
+                // Instances will last till the end of the scope, then disposed
+                using (var scope = host.Services.CreateScope())
+                {
+                    var cjApiClient = scope.ServiceProvider.GetRequiredService<CJApiClient>();
+                    await RunCatalogCrawler(cjApiClient, 1, "shoe organizer");
+                }
                 break;
 
-            case "skus":
-                await ExtractVariantSku(cjClient);
+            //Get SKU with good price + in the US
+            case "cleansku":
+                using (var scope = host.Services.CreateScope())
+                {
+                    var cjApiClient = scope.ServiceProvider.GetRequiredService<CJApiClient>();
+                    var deepSeekClient = scope.ServiceProvider.GetRequiredService<DeepSeekClient>();
+                    var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    await CleanSku(cjApiClient, deepSeekClient, appDbContext, "43506",maxBatches:1);
+
+                }
                 break;
+
+
+            case "ebay":
+            //var filePath = "listingCandidates.jsonl";
+            //if (!File.Exists(filePath))
+            //{
+            //    Console.WriteLine($"File path doesn't exist {filePath}");
+            //}
+            //var lines = await File.ReadAllLinesAsync(filePath);
+            //for (int i = 35; i < lines.Length; i++)
+            //{
+            //    var product = JObject.Parse(lines[i]);
+            //    var title = (string)product["title"]!;
+            //    var description = (string)product["description"];
+            //    var images = product["images"]?.ToObject<List<string>>() ?? new List<string>();
+            //
+            //    var required = product["requiredFields"]?.ToObject<Dictionary<string, string>>() ?? new Dictionary<string, string>();
+            //    var recommended = product["recommendedFields"]?.ToObject<Dictionary<string, string>>() ?? new Dictionary<string, string>();
+            //
+            //    var allFields = required.Concat(recommended).ToDictionary(kv => kv.Key, kv => new List<String> { kv.Value });
+            //
+            //    await ebayInventoryService.CreateOrUpdateInventoryItem(sku: i.ToString(), title: title, description: description, images: images,
+            //                                      itemSpecifics: allFields, 10);
+            //    var price = product["sellPrice"]!.ToObject<decimal>();
+            //    var offerId = await ebayOfferSerivce.CreateOffer(i.ToString(), "43506", price + 3, "DEFAULT_LOCATION", "255527709013", "255527791013", "255527716013");
+            //    await ebayOfferSerivce.publishOffer(offerId);
+            //}
+            //break;
+
+            case "test":
+                break;
+        }
+
+    }
+
+    // These extract Variant Sku from PIDs.
+    static async Task CleanSku(CJApiClient cjClient, DeepSeekClient deepSeekClient, AppDbContext context, string ebayCategoryId, int batchSize = 20, int? maxBatches = null)
+    {
+        var settings = new JsonSerializerSettings
+        {
+            NullValueHandling = NullValueHandling.Ignore  
+        };
+
+        // Get required and recommended aspects
+        var requiredAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: ebayCategoryId, aspect:"RequiredAspects");
+        var recommendedAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: ebayCategoryId, aspect:"RecommendedAspects");
+        var categoryName = await Helper.GetEbayCategoryName(ebayCategoryId);
+        
+        int batchNumber = 0;
+        bool hasMore = true;
+        
+        while (hasMore && (maxBatches == null || batchNumber < maxBatches))
+        {
+            batchNumber++;
+            Console.WriteLine($"Processing batch {batchNumber}...");
             
-            case "getUsSku":
-                await GetUsSku(cjClient);
+            // Get next batch of unprocessed SKUs
+            var dirtySkus = await context.DirtySkus
+                .Where(sku => sku.Processed == false)
+                .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
+                .Take(batchSize)
+                .ToListAsync();
+            
+            if (dirtySkus.Count == 0)
+            {
+                hasMore = false;
+                Console.WriteLine("Has processed all dirty Skus/batches");
                 break;
-
-
-            default:
-                Console.WriteLine("Unknown command");
-                break;
+            }
+            
+            await ProcessBatch(dirtySkus, cjClient, deepSeekClient, context, requiredAspects, recommendedAspects, categoryName, settings);
         }
-
     }
-    public static async Task GetUsSku(CJApiClient cjClient)
+private static async Task ProcessBatch(List<DirtySku> dirtySkus, CJApiClient cjClient, DeepSeekClient deepSeekClient, AppDbContext context, string requiredAspects, string recommendedAspects, string categoryName, JsonSerializerSettings settings)
     {
-        var inputFile = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/variantSku.txt";
-        var outputFile = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/qualifiedSkus.txt";
-        var progressFile = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/qualified_progress.txt";
-
-        if (!File.Exists(inputFile))
+        foreach (var dirtySku in dirtySkus)
         {
-            Console.WriteLine("variantSku.txt not found.");
+            await ProcessSingleSku(dirtySku, cjClient, deepSeekClient, context,requiredAspects, recommendedAspects, categoryName, settings);
+        }
+    }
+    static async Task RunCatalogCrawler(CJApiClient cjClient, int ebayCategoryId, string productNameEn)
+    {
+        var pids = await cjClient.GetPids(ebayCategoryId, productNameEn, Helper.IsLikelyShoeOrganizer);
+    }
+    private static async Task ProcessSingleSku(DirtySku dirtySku, CJApiClient cjClient, DeepSeekClient deepSeekClient, AppDbContext context, string requiredAspectsForPrompt, string recommendedAspectsForPrompt, string categoryName, JsonSerializerSettings settings)
+    {
+        Console.WriteLine($"Fetching product info for sku {dirtySku.Sku}");
+        var productInfo = await cjClient.GetProductDetailAsync(dirtySku.Sku,isProductSku:true);
+        
+        if (productInfo.Data.Variants == null)
+        {
+            Console.WriteLine($"Skip sku {dirtySku.Sku} - no variants");
+            dirtySku.Processed = true;
+            await context.SaveChangesAsync();
             return;
         }
-
-        var allSkus = await File.ReadAllLinesAsync(inputFile);
-
-        // Load existing qualified SKUs (avoid duplicates)
-        var qualifiedSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (File.Exists(outputFile))
+        
+        bool processedSuccessfully = false;
+        
+        foreach (var variant in productInfo.Data.Variants)
         {
-            foreach (var line in await File.ReadAllLinesAsync(outputFile))
+            if (await ProcessVariant(variant, dirtySku, productInfo, cjClient, deepSeekClient,
+                context, requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName, settings))
             {
-                var s = line.Trim();
-                if (!string.IsNullOrWhiteSpace(s))
-                    qualifiedSet.Add(s);
+                processedSuccessfully = true;
+                break; // Successfully processed one variant
             }
         }
-
-        // Resume support
-        int startIndex = 0;
-        if (File.Exists(progressFile))
-            int.TryParse(await File.ReadAllTextAsync(progressFile), out startIndex);
-
-        Console.WriteLine($"Starting at index {startIndex}");
-
-        for (int i = startIndex; i < allSkus.Length; i++)
+        
+        if (!processedSuccessfully)
         {
-            var sku = allSkus[i].Trim();
+            // Mark as processed even if no valid variants found
+            dirtySku.Processed = true;
+            await context.SaveChangesAsync();
+        }
+    }
 
-            if (string.IsNullOrWhiteSpace(sku))
-                continue;
+        private static async Task<bool> SaveValidatedSku(CjVariant variant, DirtySku dirtySku, CjProductDetailResponse productInfo, AiEnrichmentResult aiResult, AppDbContext context)
+        {
+            var itemSpecifics = aiResult.RequiredFields.Concat(aiResult.RecommendedFields).ToDictionary(x => x.Key, x => x.Value);
 
+            var skuEntity = new Sku
+            {
+                SkuCode = variant.VariantSku!,
+                Pid = productInfo.Data.Pid!,
+                Title = aiResult.Title,
+                Description = aiResult.Description,
+                ImageUrls = aiResult.Images?.ToArray() ?? Array.Empty<string>(),
+                ItemSpecifics = JsonConvert.SerializeObject(itemSpecifics),
+                SellPrice = aiResult.Sellprice,
+                Processed = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            using var transaction = await context.Database.BeginTransactionAsync();
             try
             {
-                Console.WriteLine($"[{i+1}/{allSkus.Length}] Checking {sku}");
+                context.Skus.Add(skuEntity);
+                dirtySku.Processed = true;
+                await context.SaveChangesAsync();
+                await transaction.CommitAsync();
 
-                var stock = await cjClient.GetStockBySkuAsync(sku);
-
-                if (stock?.Data == null)
-                {
-                    Console.WriteLine("Null stock response — retrying...");
-                    await Task.Delay(2500);
-                    i--;
-                    continue;
-                }
-
-                // QUALIFICATION RULE
-                bool hasUsStock = stock.Data.Any(w =>
-                    w.CountryCode == "US" &&
-                    w.TotalInventoryNum.HasValue &&
-                    w.TotalInventoryNum.Value > 0);
-
-                if (hasUsStock && qualifiedSet.Add(sku))
-                {
-                    await File.AppendAllLinesAsync(outputFile, new[] { sku });
-                    Console.WriteLine($"US STOCK ✔ {sku}");
-                }
-
-                // checkpoint every 20
-                if (i % 20 == 0)
-                    await File.WriteAllTextAsync(progressFile, i.ToString());
-
-                await Task.Delay(850); // CJ safe rate
+                Console.WriteLine($"Saved {dirtySku.Sku} successfully");
+                return true;
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
+            {
+                await transaction.RollbackAsync();
+                Console.WriteLine($"Duplicate SKU {variant.VariantSku} - skipping");
+                return false;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error on {sku}: {ex.Message}");
-                await Task.Delay(5000);
-                i--;
+                await transaction.RollbackAsync();
+                Console.WriteLine($"Error saving SKU {variant.VariantSku}: {ex.Message}");
+                return false;
             }
         }
 
-        Console.WriteLine("Qualification job complete.");
-    }
-
-    // These extract Variant Sku from PIDs. Only variants within 15-80 is allowed
-    static async Task ExtractVariantSku(CJApiClient cjClient)
+private static async Task<bool> ProcessVariant(CjVariant variant, DirtySku dirtySku,
+    CjProductDetailResponse productInfo, CJApiClient cjClient, DeepSeekClient deepSeekClient,
+    AppDbContext context, string requiredAspectsForPrompt, string recommendedAspectsForPrompt,
+    string categoryName, JsonSerializerSettings settings)
+{
+    try
     {
-        var pidFile = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/productPid.txt";
-        var progressFile = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/skuProgress.txt";
-
-        if (!File.Exists(pidFile))
+        // Check US availability
+        var stockResult = await cjClient.GetStockBySkuAsync(variant.VariantSku!);
+        var isAvailableUs = stockResult.Data?.Any(w => w.CountryCode.Contains("US")) ?? false;
+        
+        if (!isAvailableUs)
         {
-            Console.WriteLine("No PID file found.");
-            return;
+            Console.WriteLine($"{variant.VariantSku} not available in US");
+            return false;
         }
-
-        var existingVariantSkus = await LoadVariantSkusAsync();
-        var allPids = await File.ReadAllLinesAsync(pidFile);
-
-        int startIndex = 0;
-        if (File.Exists(progressFile))
-            int.TryParse(await File.ReadAllTextAsync(progressFile), out startIndex);
-
-        for (int i = startIndex; i < allPids.Length; i++)
+        
+        // Build DeepSeek input
+        var deepSeekInput = DeepSeekInput.Build(productInfo.Data, variant);
+        if (deepSeekInput == null)
         {
-            var pid = allPids[i].Trim();
-            if (string.IsNullOrWhiteSpace(pid))
-                continue;
-
-            try
-            {
-                Console.WriteLine($"[{i + 1}/{allPids.Length}] Fetching {pid}");
-
-                var response = await cjClient.GetProductDetailAsync(pid);
-
-                if (response?.Data?.Variants == null)
-                {
-                    await Task.Delay(3000);
-                    i--;
-                    continue;
-                }
-
-                var goodSkus = response.Data.Variants
-                    .Where(v =>
-                        v != null &&
-                        !string.IsNullOrWhiteSpace(v.VariantSku) &&
-                        v.VariantSellPrice >= 15m &&
-                        v.VariantSellPrice <= 80m)
-                    .Select(v => v!.VariantSku!);
-
-                await SaveNewVariantSkusAsync(goodSkus, existingVariantSkus);
-
-
-                await File.WriteAllTextAsync(progressFile, i.ToString());
-
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error: {ex.Message}");
-                await Task.Delay(5000);
-                i--;
-            }
+            Console.WriteLine($"{variant.VariantSku} failed DeepSeekInput.Build");
+            return false;
         }
+        
+        // Get AI validation
+        var deepSeekPrompt = DeepSeekService.BuildPrompt(
+            JsonConvert.SerializeObject(deepSeekInput, Formatting.Indented, settings),
+            requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName);
+        
+        var deepSeekResult = await deepSeekClient.SendPrompt(deepSeekPrompt);
+        var aiResult = JsonConvert.DeserializeObject<AiEnrichmentResult>(deepSeekResult);
+        
+        if (aiResult == null)
+        {
+            Console.WriteLine($"{variant.VariantSku} cannot deserialize AI response");
+            return false;
+        }
+        
+        if (!aiResult.Valid)
+        {
+            Console.WriteLine($"{variant.VariantSku} AI rejected:");
+            return false;
+        }
+        
+        // Save to database
+        return await SaveValidatedSku(variant, dirtySku, productInfo, aiResult, context);
     }
-
-
-    static async Task RunCatalogCrawler(CJApiClient cjClient)
+    catch (Exception ex)
     {
-        var productPidPath = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/productPid.txt";
-        var statePath = "/Users/nhck3001/Documents/GitHub/EbayAutomationService/crawlState.json";
-
-        var state = await CrawlState.LoadCrawlStateAsync(statePath);
-
-        int startPage = state.LastEndPage + 1;
-        int endPage = startPage + 49;
-
-        Console.WriteLine($"Crawling pages {startPage} → {endPage}");
-
-        var pids = await cjClient.Get2500Pids(startPage,endPage,
-            async (completedPage) =>
-            {
-                state.LastEndPage = completedPage;
-                await CrawlState.SaveCrawlStateAsync(statePath, state);
-            },
-            async (discoveredPagePids) =>
-            {
-                await AppendNewPidsAsync(productPidPath, discoveredPagePids);
-            });
-    }
-
-
-    public static async Task<HashSet<string>> LoadVariantSkusAsync()
-    {
-        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        if (!File.Exists("/Users/nhck3001/Documents/GitHub/EbayAutomationService/variantSku.txt"))
-            return set;
-
-        var lines = await File.ReadAllLinesAsync("/Users/nhck3001/Documents/GitHub/EbayAutomationService/variantSku.txt");
-
-        foreach (var line in lines)
-        {
-            var sku = line.Trim();
-            if (!string.IsNullOrWhiteSpace(sku))
-                set.Add(sku);
-        }
-
-        Console.WriteLine($"Loaded {set.Count} existing variant SKUs");
-        return set;
-    }
-    public static async Task SaveNewVariantSkusAsync(IEnumerable<string> skus,HashSet<string> existingSet)
-    {
-        var newOnes = new List<string>();
-
-        foreach (var sku in skus)
-        {
-            if (string.IsNullOrWhiteSpace(sku))
-                continue;
-
-            var clean = sku.Trim();
-
-            // HashSet.Add returns true only if not already present
-            if (existingSet.Add(clean))
-                newOnes.Add(clean);
-        }
-
-        if (newOnes.Count == 0)
-            return;
-
-        await File.AppendAllLinesAsync("/Users/nhck3001/Documents/GitHub/EbayAutomationService/variantSku.txt", newOnes);
-
-        Console.WriteLine($"Saved {newOnes.Count} new variant SKUs");
-    }
-
-    public static async Task AppendNewPidsAsync(string filePath, IEnumerable<string> newPids)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
-
-        // Load existing PIDs into a Hashset to allow fast look up and remove duplicate
-        var existing = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        if (File.Exists(filePath))
-        {
-            var lines = await File.ReadAllLinesAsync(filePath);
-            foreach (var line in lines)
-            {
-                var pid = line.Trim();
-                if (!string.IsNullOrWhiteSpace(pid))
-                    existing.Add(pid);
-            }
-        }
-
-        // Find only new PIDs
-        var toAppend = new List<string>();
-        // Look through newly found Pids, append them if they are not already appended
-        foreach (var pid in newPids)
-        {
-            if (string.IsNullOrWhiteSpace(pid))
-                continue;
-            var clean = pid.Trim();
-            if (existing.Add(clean)) // HashSet.Add returns false if duplicate
-                toAppend.Add(clean);
-        }
-
-        if (toAppend.Count == 0)
-        {
-            Console.WriteLine("No new PIDs discovered.");
-            return;
-        }
-
-        await File.AppendAllLinesAsync(filePath, toAppend);
-
-        Console.WriteLine($"Added {toAppend.Count} new PIDs (Total known: {existing.Count})");
-    }
-
-
-
-    public static async Task<JObject> GetItemViaTradingApi(string itemId, string appId, string certId, string devId, string ebayAuthToken)
-    {
-        var endpoint = "https://api.ebay.com/ws/api.dll";
-
-        var requestXml = $@"
-    <?xml version=""1.0"" encoding=""utf-8""?>
-    <GetItemRequest xmlns=""urn:ebay:apis:eBLBaseComponents"">
-    <RequesterCredentials>
-        <eBayAuthToken>{ebayAuthToken}</eBayAuthToken>
-    </RequesterCredentials>
-    <ItemID>{itemId}</ItemID>
-    <DetailLevel>ReturnAll</DetailLevel>
-    <IncludeItemSpecifics>true</IncludeItemSpecifics>
-    </GetItemRequest>";
-
-        using var client = new HttpClient();
-
-        var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
-        {
-            Content = new StringContent(requestXml, Encoding.UTF8, "text/xml")
-        };
-
-        // Required Trading API headers
-        request.Headers.Add("X-EBAY-API-CALL-NAME", "GetItem");
-        request.Headers.Add("X-EBAY-API-SITEID", "0"); // 0 = US
-        request.Headers.Add("X-EBAY-API-COMPATIBILITY-LEVEL", "967");
-        request.Headers.Add("X-EBAY-API-DEV-NAME", devId);
-        request.Headers.Add("X-EBAY-API-APP-NAME", appId);
-        request.Headers.Add("X-EBAY-API-CERT-NAME", certId);
-
-        var response = await client.SendAsync(request);
-        var responseXml = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new Exception($"Trading API error: {responseXml}");
-        }
-
-        return ConvertGetItemResponseToJson(responseXml);
-    }
-
-    private static JObject ConvertGetItemResponseToJson(string xml)
-    {
-        var doc = XDocument.Parse(xml);
-        XNamespace ns = "urn:ebay:apis:eBLBaseComponents";
-
-        var item = doc.Descendants(ns + "Item").FirstOrDefault();
-        if (item == null)
-            throw new Exception("Item node not found");
-
-        var result = new JObject
-        {
-            ["ItemID"] = item.Element(ns + "ItemID")?.Value,
-            ["Title"] = item.Element(ns + "Title")?.Value,
-            ["Description"] = item.Element(ns + "Description")?.Value,
-            ["CategoryID"] = item.Element(ns + "PrimaryCategory")?.Element(ns + "CategoryID")?.Value,
-            ["Price"] = item.Element(ns + "SellingStatus")?.Element(ns + "CurrentPrice")?.Value,
-            ["Currency"] = item.Element(ns + "SellingStatus")?.Element(ns + "CurrentPrice")?.Attribute("currencyID")?.Value
-        };
-
-        // Item Specifics
-        var specifics = new JObject();
-        foreach (var nv in item.Descendants(ns + "NameValueList"))
-        {
-            var name = CleanUnicode(nv.Element(ns + "Name")?.Value);
-
-            var values = nv.Elements(ns + "Value").Select(v => CleanUnicode(v.Value)).ToList();
-
-            if (!string.IsNullOrEmpty(name))
-                specifics[name] = JArray.FromObject(values);
-        }
-
-        result["ItemSpecifics"] = specifics;
-
-        // Images
-        var images = item.Descendants(ns + "PictureURL").Select(p => p.Value).ToList();
-        result["Images"] = JArray.FromObject(images);
-
-        return result;
-    }
-    public static async Task ExportProductSkusAsync(List<CjProductDetail> products, string filePath)
-    {
-        if (products == null || products.Count == 0)
-            return;
-
-        // remove nulls + duplicates
-        var skus = products
-            .Where(p => !string.IsNullOrWhiteSpace(p.ProductSku))
-            .Select(p => p.ProductSku!.Trim())
-            .Distinct()
-            .OrderBy(s => s)
-            .ToList();
-
-        // ensure directory exists
-        var dir = Path.GetDirectoryName(filePath);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        // write file
-        await File.WriteAllLinesAsync(filePath, skus);
-
-        Console.WriteLine($"Exported {skus.Count} SKUs to {filePath}");
-    }
-
-
-    public static string CleanUnicode(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-            return input;
-
-        var sb = new StringBuilder(input.Length);
-
-        foreach (var ch in input)
-        {
-            var category = Char.GetUnicodeCategory(ch);
-
-            // Remove formatting/control characters like U+200E
-            if (category != UnicodeCategory.Format)
-            {
-                sb.Append(ch);
-            }
-        }
-
-        return sb.ToString().Trim();
-    }
-    public static string CleanEbayDescription(string html)
-    {
-        if (string.IsNullOrWhiteSpace(html))
-            return string.Empty;
-
-        // Remove span tags but keep inner text
-        html = Regex.Replace(html, @"<\/?span[^>]*>", "", RegexOptions.IgnoreCase);
-
-        // Remove class attributes
-        html = Regex.Replace(html, @"\sclass=""[^""]*""", "", RegexOptions.IgnoreCase);
-
-        // Remove style attributes
-        html = Regex.Replace(html, @"\sstyle=""[^""]*""", "", RegexOptions.IgnoreCase);
-
-        // Remove unicode directional markers
-        html = html
-            .Replace("\u200E", "")
-            .Replace("\u200F", "")
-            .Replace("\u202A", "")
-            .Replace("\u202B", "")
-            .Replace("\u202C", "");
-
-        return html.Trim();
+        Console.WriteLine($"Error processing variant {variant.VariantSku}: {ex.Message}");
+        return false;
     }
 }
+}
+
+
+    public class EbayCategoryNode
+    {
+        public string CategoryId { get; set; }
+        public string CategoryName { get; set; }
+        public List<EbayCategoryNode> Children { get; set; } = new();
+        public static EbayCategoryNode ParseNode(JToken node)
+        {
+            var category = node["category"];
+
+            var result = new EbayCategoryNode
+            {
+                CategoryId = category["categoryId"]?.ToString(),
+                CategoryName = category["categoryName"]?.ToString()
+            };
+
+            var children = node["childCategoryTreeNodes"];
+
+            if (children != null)
+            {
+                foreach (var child in children)
+                {
+                    result.Children.Add(ParseNode(child));
+                }
+            }
+
+            return result;
+        }
+
+        public static EbayCategoryNode? FindCategory(EbayCategoryNode node, string name)
+        {
+            if (node.CategoryName.Equals(name, StringComparison.OrdinalIgnoreCase))
+                return node;
+
+            foreach (var child in node.Children)
+            {
+                var found = FindCategory(child, name);
+                if (found != null)
+                    return found;
+            }
+
+            return null;
+        }
+
+        public static void PrintAllChildren(EbayCategoryNode node, int depth = 0)
+        {
+            string indent = new string(' ', depth * 2);
+
+            Console.WriteLine($"{indent}{node.CategoryName} ({node.CategoryId})");
+
+            foreach (var child in node.Children)
+            {
+                PrintAllChildren(child, depth + 1);
+            }
+        }
+
+        public static (EbayCategoryNode? node, EbayCategoryNode? parent)
+        FindById(EbayCategoryNode current, string id, EbayCategoryNode? parent = null)
+        {
+            if (current.CategoryId == id)
+                return (current, parent);
+
+            foreach (var child in current.Children)
+            {
+                var result = FindById(child, id, current);
+                if (result.node != null)
+                    return result;
+            }
+
+            return (null, null);
+        }
+
+
+    }
+    
+
+
 
 
 

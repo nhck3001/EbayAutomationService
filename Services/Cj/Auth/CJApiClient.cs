@@ -14,7 +14,7 @@ public class CJApiClient
     private static readonly SemaphoreSlim _rateLimiter = new(1, 1);
     private static DateTime _lastRequestTime = DateTime.MinValue;
     private const string BaseUrl = "https://developers.cjdropshipping.com/api2.0/v1/";
-    private AppDbContext _appDbContext;
+    public AppDbContext _appDbContext;
 
     // Make sure every API request is called no more often than every 1.1 s
     // Because Cj QPS is 1 per second. This is global.
@@ -106,13 +106,20 @@ public class CJApiClient
     // ---------- READ-ONLY ENDPOINTS ----------
 
     /// <summary>
-    /// Get full product detail by pid
+    /// Get full product detail by sku
     /// </summary>
-    public Task<CjProductDetailResponse> GetProductDetailAsync(string pid)
+    public Task<CjProductDetailResponse> GetProductDetailAsync(string sku, bool isProductSku = true)
     {
-        var endpoint = $"product/query?pid={pid}";
+        // Default is variantSku
+        var endpoint = $"product/query?variantSku={sku}&countryCode=US";
+        if (isProductSku == true)
+        {
+            endpoint = $"product/query?productSku={sku}&countryCode=US";
+
+        }
         return GetAsync<CjProductDetailResponse>(endpoint);
     }
+
     // By Default, Loop through 50 page, 50 products each page to LOOK for PIDs only
     // shoe rack DONE
     // shoe organizer DONE

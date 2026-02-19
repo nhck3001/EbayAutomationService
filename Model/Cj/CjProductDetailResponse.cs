@@ -91,6 +91,7 @@ public class CjVariant
     public int? VariantLength { get; set; }
     public int? VariantWidth { get; set; }
     public int? VariantHeight { get; set; }
+    public int? VariantVolume { get; set; } // mm3
 
     public string? VariantStandard { get; set; }
     
