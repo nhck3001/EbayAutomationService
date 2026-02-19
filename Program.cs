@@ -7,7 +7,7 @@ using EbayAutomationService.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Logging;
+using Serilog;
 using EbayAutomationService.Helper;
 using EbayAutomationService.Domain;
 using Npgsql;
@@ -17,6 +17,10 @@ class Program
 {
     static async Task Main(string[] args)
     {
+        // Create a global logger that will automatically log everything to a file on top of outputting to the console
+        Log.Logger = new LoggerConfiguration().MinimumLevel.Information().WriteTo.Console().
+        WriteTo.File("logs/log-.txt",rollingInterval: RollingInterval.Day,retainedFileCountLimit: 7).CreateLogger();
+
         // Host.CreateDefaultBuilder(args) -> Load json from appsettings.json into memory as a Dictionary.
         // context give you configuration + environment info. Ex: context.Configuration["ConnectionStrings:DefaultConnection"]
         // services is a dependency injection container
@@ -88,7 +92,6 @@ class Program
                     var deepSeekClient = scope.ServiceProvider.GetRequiredService<DeepSeekClient>();
                     var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                     await CleanSku(cjApiClient, deepSeekClient, appDbContext, "43506");
-
                 }
                 break;
 
@@ -145,7 +148,7 @@ class Program
         while (hasMore && (maxBatches == null || batchNumber < maxBatches))
         {
             batchNumber++;
-            Console.WriteLine($"Processing batch {batchNumber}...");
+            Log.Information($"Processing batch {batchNumber}...");
             
             // Get next batch of unprocessed SKUs
             var dirtySkus = await context.DirtySkus
@@ -157,7 +160,7 @@ class Program
             if (dirtySkus.Count == 0)
             {
                 hasMore = false;
-                Console.WriteLine("Has processed all dirty Skus/batches");
+                Log.Information("Has processed all dirty Skus/batches");
                 break;
             }
             
@@ -173,12 +176,12 @@ private static async Task ProcessBatch(List<DirtySku> dirtySkus, CJApiClient cjC
     }
     private static async Task ProcessSingleSku(DirtySku dirtySku, CJApiClient cjClient, DeepSeekClient deepSeekClient, AppDbContext context, string requiredAspectsForPrompt, string recommendedAspectsForPrompt, string categoryName, JsonSerializerSettings settings)
     {
-        Console.WriteLine($"Fetching product info for sku {dirtySku.Sku}");
+        Log.Information($"Fetching product info for sku {dirtySku.Sku}");
         var productInfo = await cjClient.GetProductDetailAsync(dirtySku.Sku,isProductSku:true);
         
         if (productInfo.Data.Variants == null)
         {
-            Console.WriteLine($"Skip sku {dirtySku.Sku} - no variants");
+            Log.Information($"Skip sku {dirtySku.Sku} - no variants");
             dirtySku.Processed = true;
             await context.SaveChangesAsync();
             return;
@@ -217,7 +220,7 @@ private static async Task ProcessBatch(List<DirtySku> dirtySkus, CJApiClient cjC
 
             if (!isAvailableUs)
             {
-                Console.WriteLine($"{variant.VariantSku} not available in US");
+                Log.Information($"Reject sku {variant.VariantSku} not available in US");
                 return false;
             }
 
@@ -225,7 +228,7 @@ private static async Task ProcessBatch(List<DirtySku> dirtySkus, CJApiClient cjC
             var deepSeekInput = DeepSeekInput.Build(productInfo.Data, variant);
             if (deepSeekInput == null)
             {
-                Console.WriteLine($"{variant.VariantSku} failed DeepSeekInput.Build");
+                Log.Information($"Reject sku {variant.VariantSku} failed DeepSeekInput.Build");
                 return false;
             }
 
@@ -239,13 +242,13 @@ private static async Task ProcessBatch(List<DirtySku> dirtySkus, CJApiClient cjC
 
             if (aiResult == null)
             {
-                Console.WriteLine($"{variant.VariantSku} cannot deserialize AI response");
+                Log.Information($"{variant.VariantSku} cannot deserialize AI response");
                 return false;
             }
 
             if (!aiResult.Valid)
             {
-                Console.WriteLine($"{variant.VariantSku} AI rejected: {aiResult.Message}");
+                Log.Information($"{variant.VariantSku} AI rejected: {aiResult.Message}");
                 return false;
             }
 
@@ -254,58 +257,54 @@ private static async Task ProcessBatch(List<DirtySku> dirtySkus, CJApiClient cjC
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error processing variant {variant.VariantSku}: {ex.Message}");
+            Log.Information($"Error processing variant {variant.VariantSku}: {ex.Message}");
             return false;
         }
     }
 
-            private static async Task<bool> SaveValidatedSku(CjVariant variant, DirtySku dirtySku, CjProductDetailResponse productInfo, AiEnrichmentResult aiResult, AppDbContext context)
+    private static async Task<bool> SaveValidatedSku(CjVariant variant, DirtySku dirtySku, CjProductDetailResponse productInfo, AiEnrichmentResult aiResult, AppDbContext context)
+    {
+        var itemSpecifics = aiResult.RequiredFields.Concat(aiResult.RecommendedFields).ToDictionary(x => x.Key, x => x.Value);
+        var skuEntity = new Sku
         {
-            var itemSpecifics = aiResult.RequiredFields.Concat(aiResult.RecommendedFields).ToDictionary(x => x.Key, x => x.Value);
-
-            var skuEntity = new Sku
-            {
-                SkuCode = variant.VariantSku!,
-                Pid = productInfo.Data.Pid!,
-                Title = aiResult.Title,
-                Description = aiResult.Description,
-                ImageUrls = aiResult.Images?.ToArray() ?? Array.Empty<string>(),
-                ItemSpecifics = JsonConvert.SerializeObject(itemSpecifics),
-                SellPrice = aiResult.Sellprice,
-                Processed = false,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            using var transaction = await context.Database.BeginTransactionAsync();
-            try
-            {
-                context.Skus.Add(skuEntity);
-                dirtySku.Processed = true;
-                await context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                Console.WriteLine($"Saved {dirtySku.Sku} successfully");
-                return true;
-            }
-            catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
-            {
-                await transaction.RollbackAsync();
-                Console.WriteLine($"Duplicate SKU {variant.VariantSku} - skipping");
-                return false;
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                Console.WriteLine($"Error saving SKU {variant.VariantSku}: {ex.Message}");
-                return false;
-            }
+            SkuCode = variant.VariantSku!,
+            Pid = productInfo.Data.Pid!,
+            Title = aiResult.Title,
+            Description = aiResult.Description,
+            ImageUrls = aiResult.Images?.ToArray() ?? Array.Empty<string>(),
+            ItemSpecifics = JsonConvert.SerializeObject(itemSpecifics),
+            SellPrice = aiResult.Sellprice,
+            Processed = false,
+            CreatedAt = DateTime.UtcNow
+        };
+        using var transaction = await context.Database.BeginTransactionAsync();
+        try
+        {
+            context.Skus.Add(skuEntity);
+            dirtySku.Processed = true;
+            await context.SaveChangesAsync();
+            await transaction.CommitAsync();
+            Log.Information($"Saved {dirtySku.Sku} successfully");
+            return true;
         }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
+        {
+            await transaction.RollbackAsync();
+            Log.Information($"Duplicate SKU {variant.VariantSku} - skipping");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+            Log.Information($"Error saving SKU {variant.VariantSku}: {ex.Message}");
+            return false;
+        }
+    }
     static async Task RunCatalogCrawler(CJApiClient cjClient, int ebayCategoryId, string productNameEn)
     {
         var pids = await cjClient.GetPids(ebayCategoryId, productNameEn, Helper.IsLikelyShoeOrganizer);
     }
 }
-
 
     public class EbayCategoryNode
     {

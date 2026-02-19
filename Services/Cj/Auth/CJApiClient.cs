@@ -5,6 +5,7 @@ using EbayAutomationService.Models;
 using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json;
 using Npgsql;
+using Serilog;
 
 public class CJApiClient
 {
@@ -117,7 +118,17 @@ public class CJApiClient
             endpoint = $"product/query?productSku={sku}&countryCode=US";
 
         }
-        return GetAsync<CjProductDetailResponse>(endpoint);
+        try
+        {
+            var result = GetAsync<CjProductDetailResponse>(endpoint);
+            return result;
+        }
+        catch (HttpRequestException ex)
+        {
+            Log.Warning(ex, "HttpRequestException happen in GetProductDetailAsync");
+            throw;
+        }
+
     }
 
     // By Default, Loop through 50 page, 50 products each page to LOOK for PIDs only
@@ -147,33 +158,42 @@ public class CJApiClient
         for (int currentPage = 1; currentPage <= page; currentPage++)
         {
             Console.WriteLine($"Scanning page {currentPage}...");
-
-            var response = await GetAsync<CjProductListV2Response>($"product/listV2?" +
-                                                                $"keyWord={productName}&" +
-                                                                $"page={currentPage}&" +
-                                                                "countryCode=US&" +
-                                                                $"addMarkStatus={addMarkStatus}&" +
-                                                                $"size={size}&" +
-                                                                "verifiedWarehouse=1&" +
-                                                                "startWarehouseInventory=20&"
-                                                                );
-
-            if (response?.Data?.Content[0].ProductList == null || response.Data.Content[0].ProductList.Count == 0)
+            try
             {
-                Console.WriteLine("No products returned. Possibly end of category.");
-                break;
-            }
-            // Check if product is likely a {productName)
-            var productList = response.Data.Content[0].ProductList;
-            foreach (var product in productList)
-            {
-                var productNameEn = product.NameEn;
-                if (productFilter(productNameEn))
+                var response = await GetAsync<CjProductListV2Response>($"product/listV2?" +
+                                                       $"keyWord={productName}&" +
+                                                       $"page={currentPage}&" +
+                                                       "countryCode=US&" +
+                                                       $"addMarkStatus={addMarkStatus}&" +
+                                                       $"size={size}&" +
+                                                       "verifiedWarehouse=1&" +
+                                                       "startWarehouseInventory=20&"
+                                                       );
+
+
+                if (response?.Data?.Content[0].ProductList == null || response.Data.Content[0].ProductList.Count == 0)
                 {
-                    // If the product is likely a {productName}
-                    // Save it to the database
-                    await SaveDirtySkuAsync(product.Sku, ebayCategoryId);
+                    Log.Information("No products returned. Possibly end of category.");
+                    break;
                 }
+
+                // Check if product is likely a {productName)
+                var productList = response.Data.Content[0].ProductList;
+                foreach (var product in productList)
+                {
+                    var productNameEn = product.NameEn;
+                    if (productFilter(productNameEn))
+                    {
+                        // If the product is likely a {productName}
+                        // Save it to the database
+                        await SaveDirtySkuAsync(product.Sku, ebayCategoryId);
+                    }
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                Log.Warning(ex, "HttpRequest error in GetPids");
+                throw;
             }
             // save to the database
             await Task.Delay(600);
@@ -209,7 +229,7 @@ public class CJApiClient
             // Safe to ignore
             if (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
             {
-                Console.WriteLine("Duplicate key. Move on");
+                Log.Information("Duplicate key. Move on");
             } 
         }
     }
