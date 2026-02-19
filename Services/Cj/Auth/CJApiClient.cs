@@ -65,39 +65,46 @@ public class CJApiClient
 
         await ExecuteWithCjRateLimitAsync(async () =>
         {
-            await AddAuthAsync(); // token refresh is now protected
-
-            var response = await _httpClient.GetAsync(endpoint);
-            var body = await response.Content.ReadAsStringAsync();
-            // Http error handling
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new Exception($"CJ HTTP error: {body}");
-            }
-
-            using var doc = JsonDocument.Parse(body);
-            if (doc.RootElement.TryGetProperty("code", out var codeEl))
-            {
-                var code = codeEl.GetInt32();
-                if (code != 200)
-                    throw new Exception($"CJ API error {code}: {body}");
-            }
-
             try
             {
-                result = JsonConvert.DeserializeObject<T>(body)!;
+                await AddAuthAsync(); // token refresh is now protected
+
+                var response = await _httpClient.GetAsync(endpoint);
+                var body = await response.Content.ReadAsStringAsync();
+                // Catch HttpRequestException
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new HttpRequestException($"CJ HTTP error: {body}");
+                }
+                using var doc = JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("code", out var codeEl))
+                {
+                    var code = codeEl.GetInt32();
+                    if (code != 200)
+                        throw new HttpRequestException($"CJ API error {code}: {body}");
+                }
+
+                try
+                {
+                    result = JsonConvert.DeserializeObject<T>(body)!;
+                }
+                catch (Newtonsoft.Json.JsonException ex)
+                {
+                    // Log the error
+                    Log.Warning($"[ERROR] Failed to deserialize response to {typeof(T).Name}: {ex.Message}");
+                    Log.Warning($"[ERROR] Response body: {body}");
+
+                    // Return default value for T (null for reference types)
+                    result = default!;
+
+                    // Or throw a more meaningful exception
+                    throw new Exception($"Failed to parse CJ API response to {typeof(T).Name}", ex);
+                }
             }
-            catch (Newtonsoft.Json.JsonException ex)
+            catch (HttpRequestException ex)
             {
-                // Log the error
-                Console.WriteLine($"[ERROR] Failed to deserialize response to {typeof(T).Name}: {ex.Message}");
-                Console.WriteLine($"[ERROR] Response body: {body}");
-
-                // Return default value for T (null for reference types)
-                result = default!;
-
-                // Or throw a more meaningful exception
-                throw new Exception($"Failed to parse CJ API response to {typeof(T).Name}", ex);
+                Log.Warning(ex, $"HttpRequest fail for endpoint {endpoint}");
+                throw; // Throw up to parent to handle
             }
         });
 
@@ -116,16 +123,22 @@ public class CJApiClient
         if (isProductSku == true)
         {
             endpoint = $"product/query?productSku={sku}&countryCode=US";
-
         }
         try
         {
             var result = GetAsync<CjProductDetailResponse>(endpoint);
             return result;
         }
+        // Product has been removed from cell. 
+        catch (HttpRequestException ex) when (ex.Message.Contains("1602002"))
+        {
+            return null;
+        }
+        // Catch other exception, do not swallow it
         catch (HttpRequestException ex)
         {
-            Log.Warning(ex, "HttpRequestException happen in GetProductDetailAsync");
+            // Handle network errors
+            Log.Error(ex, "Network error when fetching product {Sku}", sku);
             throw;
         }
 
@@ -193,7 +206,8 @@ public class CJApiClient
             catch (HttpRequestException ex)
             {
                 Log.Warning(ex, "HttpRequest error in GetPids");
-                throw;
+                // Continue. A failed request to Cj doesn't stop crawling
+                await Task.Delay(5000);
             }
             // save to the database
             await Task.Delay(600);

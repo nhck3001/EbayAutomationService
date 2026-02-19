@@ -179,7 +179,14 @@ private static async Task ProcessBatch(List<DirtySku> dirtySkus, CJApiClient cjC
         Log.Information($"Fetching product info for sku {dirtySku.Sku}");
         var productInfo = await cjClient.GetProductDetailAsync(dirtySku.Sku,isProductSku:true);
         
-        if (productInfo.Data.Variants == null)
+        if (productInfo == null)
+        {
+            Log.Information($"Skip sku {dirtySku.Sku}. Product has been removed from shell");
+            dirtySku.Processed = true;
+            await context.SaveChangesAsync();
+            return;
+        }
+        else if (productInfo.Data.Variants == null)
         {
             Log.Information($"Skip sku {dirtySku.Sku} - no variants");
             dirtySku.Processed = true;
