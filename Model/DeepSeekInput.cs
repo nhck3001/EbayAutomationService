@@ -6,9 +6,9 @@ public class DeepSeekInput
     public string Brand { get; set; } = "Unbranded";
     public decimal SellPrice { get; set; }
 
-    public string? LengthIn { get; set; }
-    public string? WidthIn { get; set; }
-    public string? HeightIn { get; set; }
+    public string? ItemLength { get; set; }
+    public string? ItemWidth { get; set; }
+    public string? ItemHeight { get; set; }
 
     public int? WeightLb { get; set; }
     public int? WeightOz { get; set; }
@@ -193,9 +193,9 @@ public class DeepSeekInput
         };
 
         // Only add dimensions if they exist
-        if (lengthIn != null) result.LengthIn = lengthIn;
-        if (widthIn != null) result.WidthIn = widthIn;
-        if (heightIn != null) result.HeightIn= heightIn;
+        if (lengthIn != null) result.ItemLength = lengthIn;
+        if (widthIn != null) result.ItemWidth = widthIn;
+        if (heightIn != null) result.ItemHeight= heightIn;
 
         // Only add weight if it exists
         if (weightLb.HasValue) result.WeightLb= weightLb.Value;

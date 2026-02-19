@@ -95,7 +95,7 @@ public static class Helper
         // Get the correct category
         var obj = JObject.Parse(fullJson);
         var categoriesList = obj["Categories"] as JArray;
-        var categoryName = categoriesList?.FirstOrDefault(category => category["EbayCategoryId"]?.ToString() == ebayCategoryId)["Name"].ToString();
+        var categoryName = categoriesList?.FirstOrDefault(category => category["EbayCategoryId"]?.ToString() == ebayCategoryId)["CategoryName"].ToString();
         return categoryName;
     }
 };

@@ -25,10 +25,8 @@ public static string BuildPrompt(string input, string requiredAspectsJson, strin
     Target eBay Category:
     {categoryName}
 
-    Determine whether the product clearly and specifically belongs in this category.
-    Return valid = true ONLY if:
-    - The product is primarily designed for {categoryName}
-    - The product's core function matches {categoryName}
+    Determine whether the product  belongs in this category.
+    Return valid = true if the product functionality fit inside the category {categoryName}
     Otherwise return valid = false with rejectReason = REJECT_CATEGORY.
 
     If Stage 1 fails → return REJECT_CATEGORY immediately.
@@ -57,7 +55,7 @@ public static string BuildPrompt(string input, string requiredAspectsJson, strin
     ━━━━━━━━━━━━━━━━━━
     TITLE RULES
     ━━━━━━━━━━━━━━━━━━
-    Create ebay-friendly titles from input.dName
+    Create ebay-friendly titles from input.Name
     • Max 80 characters
     • No emojis
     • No sales phrases

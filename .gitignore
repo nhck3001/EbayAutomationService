@@ -19,6 +19,4 @@ obj/
 # TxtFile
 *.txt
 
-# Json files
-*.json
-*.jsonl
+

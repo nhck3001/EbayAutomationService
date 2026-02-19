@@ -87,7 +87,7 @@ class Program
                     var cjApiClient = scope.ServiceProvider.GetRequiredService<CJApiClient>();
                     var deepSeekClient = scope.ServiceProvider.GetRequiredService<DeepSeekClient>();
                     var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    await CleanSku(cjApiClient, deepSeekClient, appDbContext, "43506",maxBatches:1);
+                    await CleanSku(cjApiClient, deepSeekClient, appDbContext, "43506");
 
                 }
                 break;
@@ -171,10 +171,6 @@ private static async Task ProcessBatch(List<DirtySku> dirtySkus, CJApiClient cjC
             await ProcessSingleSku(dirtySku, cjClient, deepSeekClient, context,requiredAspects, recommendedAspects, categoryName, settings);
         }
     }
-    static async Task RunCatalogCrawler(CJApiClient cjClient, int ebayCategoryId, string productNameEn)
-    {
-        var pids = await cjClient.GetPids(ebayCategoryId, productNameEn, Helper.IsLikelyShoeOrganizer);
-    }
     private static async Task ProcessSingleSku(DirtySku dirtySku, CJApiClient cjClient, DeepSeekClient deepSeekClient, AppDbContext context, string requiredAspectsForPrompt, string recommendedAspectsForPrompt, string categoryName, JsonSerializerSettings settings)
     {
         Console.WriteLine($"Fetching product info for sku {dirtySku.Sku}");
@@ -208,7 +204,62 @@ private static async Task ProcessBatch(List<DirtySku> dirtySkus, CJApiClient cjC
         }
     }
 
-        private static async Task<bool> SaveValidatedSku(CjVariant variant, DirtySku dirtySku, CjProductDetailResponse productInfo, AiEnrichmentResult aiResult, AppDbContext context)
+    private static async Task<bool> ProcessVariant(CjVariant variant, DirtySku dirtySku,
+        CjProductDetailResponse productInfo, CJApiClient cjClient, DeepSeekClient deepSeekClient,
+        AppDbContext context, string requiredAspectsForPrompt, string recommendedAspectsForPrompt,
+        string categoryName, JsonSerializerSettings settings)
+    {
+        try
+        {
+            // Check US availability
+            var stockResult = await cjClient.GetStockBySkuAsync(variant.VariantSku!);
+            var isAvailableUs = stockResult.Data?.Any(w => w.CountryCode.Contains("US")) ?? false;
+
+            if (!isAvailableUs)
+            {
+                Console.WriteLine($"{variant.VariantSku} not available in US");
+                return false;
+            }
+
+            // Build DeepSeek input
+            var deepSeekInput = DeepSeekInput.Build(productInfo.Data, variant);
+            if (deepSeekInput == null)
+            {
+                Console.WriteLine($"{variant.VariantSku} failed DeepSeekInput.Build");
+                return false;
+            }
+
+            // Get AI validation
+            var deepSeekPrompt = DeepSeekService.BuildPrompt(
+                JsonConvert.SerializeObject(deepSeekInput, Formatting.Indented, settings),
+                requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName);
+
+            var deepSeekResult = await deepSeekClient.SendPrompt(deepSeekPrompt);
+            var aiResult = JsonConvert.DeserializeObject<AiEnrichmentResult>(deepSeekResult);
+
+            if (aiResult == null)
+            {
+                Console.WriteLine($"{variant.VariantSku} cannot deserialize AI response");
+                return false;
+            }
+
+            if (!aiResult.Valid)
+            {
+                Console.WriteLine($"{variant.VariantSku} AI rejected: {aiResult.Message}");
+                return false;
+            }
+
+            // Save to database
+            return await SaveValidatedSku(variant, dirtySku, productInfo, aiResult, context);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error processing variant {variant.VariantSku}: {ex.Message}");
+            return false;
+        }
+    }
+
+            private static async Task<bool> SaveValidatedSku(CjVariant variant, DirtySku dirtySku, CjProductDetailResponse productInfo, AiEnrichmentResult aiResult, AppDbContext context)
         {
             var itemSpecifics = aiResult.RequiredFields.Concat(aiResult.RecommendedFields).ToDictionary(x => x.Key, x => x.Value);
 
@@ -249,61 +300,10 @@ private static async Task ProcessBatch(List<DirtySku> dirtySkus, CJApiClient cjC
                 return false;
             }
         }
-
-private static async Task<bool> ProcessVariant(CjVariant variant, DirtySku dirtySku,
-    CjProductDetailResponse productInfo, CJApiClient cjClient, DeepSeekClient deepSeekClient,
-    AppDbContext context, string requiredAspectsForPrompt, string recommendedAspectsForPrompt,
-    string categoryName, JsonSerializerSettings settings)
-{
-    try
+    static async Task RunCatalogCrawler(CJApiClient cjClient, int ebayCategoryId, string productNameEn)
     {
-        // Check US availability
-        var stockResult = await cjClient.GetStockBySkuAsync(variant.VariantSku!);
-        var isAvailableUs = stockResult.Data?.Any(w => w.CountryCode.Contains("US")) ?? false;
-        
-        if (!isAvailableUs)
-        {
-            Console.WriteLine($"{variant.VariantSku} not available in US");
-            return false;
-        }
-        
-        // Build DeepSeek input
-        var deepSeekInput = DeepSeekInput.Build(productInfo.Data, variant);
-        if (deepSeekInput == null)
-        {
-            Console.WriteLine($"{variant.VariantSku} failed DeepSeekInput.Build");
-            return false;
-        }
-        
-        // Get AI validation
-        var deepSeekPrompt = DeepSeekService.BuildPrompt(
-            JsonConvert.SerializeObject(deepSeekInput, Formatting.Indented, settings),
-            requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName);
-        
-        var deepSeekResult = await deepSeekClient.SendPrompt(deepSeekPrompt);
-        var aiResult = JsonConvert.DeserializeObject<AiEnrichmentResult>(deepSeekResult);
-        
-        if (aiResult == null)
-        {
-            Console.WriteLine($"{variant.VariantSku} cannot deserialize AI response");
-            return false;
-        }
-        
-        if (!aiResult.Valid)
-        {
-            Console.WriteLine($"{variant.VariantSku} AI rejected:");
-            return false;
-        }
-        
-        // Save to database
-        return await SaveValidatedSku(variant, dirtySku, productInfo, aiResult, context);
+        var pids = await cjClient.GetPids(ebayCategoryId, productNameEn, Helper.IsLikelyShoeOrganizer);
     }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error processing variant {variant.VariantSku}: {ex.Message}");
-        return false;
-    }
-}
 }
 
 

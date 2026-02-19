@@ -1,0 +1,81 @@
+{
+    "Categories": [
+      {
+        "EbayCategoryId": "43506",
+        "CategoryName": "Shoe Organizer",
+        "RequiredAspects": [
+          {
+            "Name": "Brand",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Type",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Item Height",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Item Length",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Item Width",
+            "ValueType": "STRING"
+          }
+        ],
+        "RecommendedAspects": [
+          {
+            "Name": "Material",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Mounting",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Features",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Number of Shelves",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Capacity",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Assembly Required",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Item Weight",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Number of Items in Set",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Item Depth",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "MPN",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Model",
+            "ValueType": "STRING"
+          },
+          {
+            "Name": "Color",
+            "ValueType": "STRING"
+          }
+        ]
+      }
+    ]
+  }
+  
