@@ -169,20 +169,28 @@ public class CJApiClient
             return result;
         }
         // Product has been removed from cell. 
-        catch (HttpRequestException ex) when (ex.Message.Contains("Product has been removed from shelves"))
-        {
-            return null;
-        }
-        // Catch other exception, do not swallow it
         catch (HttpRequestException ex)
         {
-            // Handle network errors
-            Log.Warning(ex, "Network error when fetching product {Sku}", sku);
-            throw;
+            if (ex.Message.Contains("Product has been removed from shelves"))
+            {
+                return null;
+            }
+            // Catch other exception, do not swallow it
+            else
+            {
+                Log.Warning(ex, "Network error when fetching product {Sku}", sku);
+                throw;
+            }
         }
-
+        // Catch rate limit error. After retry, simply return null
+        catch (InvalidOperationException ex)
+        {
+            if (ex.Message.Contains("rate limit exceeded"))
+            {
+                return null;
+            }
+        }
     }
-
     // By Default, Loop through 50 page, 50 products each page to LOOK for PIDs only
     // shoe rack DONE
     // shoe organizer DONE
