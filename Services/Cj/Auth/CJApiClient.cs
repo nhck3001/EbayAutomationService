@@ -3,6 +3,7 @@ using System.Text.Json;
 using EbayAutomationService.Helper;
 using EbayAutomationService.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using Npgsql;
 using Serilog;
@@ -82,6 +83,10 @@ public class CJApiClient
                     var code = codeEl.GetInt32();
                     if (code != 200)
                         throw new HttpRequestException($"CJ API error {code}: {body}");
+                    else if (code == 1600200)
+                    {
+                        throw new InvalidOperationException($"CJ API rate limit exceeded {body}");
+                    }
                 }
 
                 try
@@ -106,6 +111,40 @@ public class CJApiClient
                 Log.Warning(ex, $"HttpRequest fail for endpoint {endpoint}");
                 throw; // Throw up to parent to handle
             }
+            catch (InvalidOperationException ex)
+            {
+                if (ex.Message.Contains("rate limit"))
+                {
+                    Log.Information("Rate limit hit. Waiting 2 seconds and retrying once");
+                    await Task.Delay(2000);
+                    await ExecuteWithCjRateLimitAsync(async () =>
+                            {
+                                await AddAuthAsync();
+                                var response = await _httpClient.GetAsync(endpoint);
+                                var body = await response.Content.ReadAsStringAsync();
+                                
+                                if (!response.IsSuccessStatusCode)
+                                {
+                                    throw new HttpRequestException($"CJ HTTP error on retry: {body}");
+                                }
+                                
+                                using var doc = JsonDocument.Parse(body);
+                                if (doc.RootElement.TryGetProperty("code", out var codeEl))
+                                {
+                                    var code = codeEl.GetInt32();
+                                    if (code != 200)
+                                    {
+                                        throw new HttpRequestException($"CJ API error {code} on retry: {body}");
+                                    }
+                                }
+
+                                result = JsonConvert.DeserializeObject<T>(body)!;
+                            });
+                            
+                            Log.Information("Retry successful");
+                }
+            }
+
         });
 
         return result;
@@ -116,7 +155,7 @@ public class CJApiClient
     /// <summary>
     /// Get full product detail by sku
     /// </summary>
-    public Task<CjProductDetailResponse> GetProductDetailAsync(string sku, bool isProductSku = true)
+    public async Task<CjProductDetailResponse> GetProductDetailAsync(string sku, bool isProductSku = true)
     {
         // Default is variantSku
         var endpoint = $"product/query?variantSku={sku}&countryCode=US";
@@ -126,11 +165,11 @@ public class CJApiClient
         }
         try
         {
-            var result = GetAsync<CjProductDetailResponse>(endpoint);
+            var result = await GetAsync<CjProductDetailResponse>(endpoint);
             return result;
         }
         // Product has been removed from cell. 
-        catch (HttpRequestException ex) when (ex.Message.Contains("1602002"))
+        catch (HttpRequestException ex) when (ex.Message.Contains("Product has been removed from shelves"))
         {
             return null;
         }
@@ -138,7 +177,7 @@ public class CJApiClient
         catch (HttpRequestException ex)
         {
             // Handle network errors
-            Log.Error(ex, "Network error when fetching product {Sku}", sku);
+            Log.Warning(ex, "Network error when fetching product {Sku}", sku);
             throw;
         }
 
@@ -158,6 +197,7 @@ public class CJApiClient
     // shoe storage shelf
     // shoe storage organizer
     public async Task<List<string>> GetPids(
+        IServiceScopeFactory scopeFactory,
         int ebayCategoryId,
         string productName,
         Func<string, bool> productFilter,
@@ -199,7 +239,12 @@ public class CJApiClient
                     {
                         // If the product is likely a {productName}
                         // Save it to the database
-                        await SaveDirtySkuAsync(product.Sku, ebayCategoryId);
+                        using (var scope = scopeFactory.CreateScope())
+                        {
+                            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                            await SaveDirtySkuAsync(product.Sku, ebayCategoryId);
+
+                        }
                     }
                 }
             }

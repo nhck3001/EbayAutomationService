@@ -26,9 +26,9 @@ public class DeepSeekInput
         {
             name = variant.VariantNameEn;
         }
-        else if (!string.IsNullOrWhiteSpace(product.ProductName))
+        else if (!string.IsNullOrWhiteSpace(product.ProductNameEn))
         {
-            name = product.ProductName;
+            name = product.ProductNameEn;
         }
         else
         {

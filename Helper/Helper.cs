@@ -1,7 +1,15 @@
 using Newtonsoft.Json.Linq;
 
 namespace EbayAutomationService.Helper;
-
+//"shoe organizer"
+//"shoe storage"
+//"shoe rack"
+//"shoe cabinet"
+//"shoe shelf"
+//"shoe stand"
+//"shoe holder"
+//"shoe tower"
+//"shoe bench"
 public static class Helper
 {
     public static string GetAspectJson()
