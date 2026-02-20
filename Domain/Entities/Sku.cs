@@ -16,18 +16,21 @@ public class Sku
 
     public decimal SellPrice { get; set; }
 
-    public SkuStatus SkuStatus { get; set; } = SkuStatus.Pending;
+    public string SkuStatus { get; set; } = SkuStatuses.Pending;
     public DateTime CreatedAt { get; set; }
 
     // Navigation
     public Listing? Listing { get; set; }
+
 }
-public enum SkuStatus
+public static class SkuStatuses
 {
-    Pending,
-    InventoryCreated,
-    OfferCreated,
-    Published,
-    Failed,
-    Rejected
+    public const string Pending = "PENDING";
+    public const string InventoryCreatedlid = "InventoryCreated";
+    public const string Rejected = "REJECTED";
+
+    public const string OfferCreated = "OfferCreated";
+    public const string Published = "Published";
+    public const string Failed = "Failed";
+
 }

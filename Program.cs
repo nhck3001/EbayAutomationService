@@ -24,12 +24,17 @@ class Program
         // Host.CreateDefaultBuilder(args) -> Load json from appsettings.json into memory as a Dictionary.
         // context give you configuration + environment info. Ex: context.Configuration["ConnectionStrings:DefaultConnection"]
         // services is a dependency injection container
+
         var host = Host.CreateDefaultBuilder(args)
             .ConfigureServices((context, services) =>
             {
+                
                 // Register the database context
                 // Whenever AppDbContext is needed, created using this connection string 'context.Configuration.GetConnectionString("DefaultConnection")'
-                services.AddDbContext<AppDbContext>(options => options.UseNpgsql(context.Configuration.GetConnectionString("DefaultConnection")));
+                services.AddDbContext<AppDbContext>(options =>
+                {
+                options.UseNpgsql(context.Configuration.GetConnectionString("DefaultConnection"));
+                });
                 // Add a custom service DatabaseTestService.
                 // Whenever a DatabaseTestService object is needed, automatically create it
                 services.AddScoped<DatabaseTestService>();
@@ -278,9 +283,31 @@ class Program
             // Save to database
             await SaveValidatedSku(scopeFactory, variant, dirtySkuId, productInfo, aiResult);
         }
+        // Catch database exception first
+        catch (DbUpdateException ex)
+        {
+            if (ex.InnerException is PostgresException pg)
+            {
+                Log.Error($@"
+                            POSTGRES ERROR
+                            Code: {pg.SqlState}
+                            Message: {pg.MessageText}
+                            Detail: {pg.Detail}
+                            Where: {pg.Where}
+                            Constraint: {pg.ConstraintName}
+                            Column: {pg.ColumnName}
+                            Table: {pg.TableName}
+                            ");
+            }
+            else
+            {
+                Log.Error(ex, "Unknown database error");
+            }
+        }
         catch (Exception ex)
         {
-            Log.Information($"Error processing variant {variant.VariantSku}: {ex.Message}");
+
+            Log.Information($"Progaram.cs Error processing variant {variant.VariantSku}: {ex.Message}");
             return;
         }
     }
@@ -297,7 +324,7 @@ class Program
             ImageUrls = aiResult.Images?.ToArray() ?? Array.Empty<string>(),
             ItemSpecifics = JsonConvert.SerializeObject(itemSpecifics),
             SellPrice = aiResult.Sellprice,
-            SkuStatus = SkuStatus.Pending,
+            SkuStatus = SkuStatuses.Pending,
             CreatedAt = DateTime.UtcNow
         };
         // Add to Sku table

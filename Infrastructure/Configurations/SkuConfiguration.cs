@@ -23,13 +23,13 @@ public class SkuConfiguration : IEntityTypeConfiguration<Sku>
         builder.Property(x => x.ItemSpecifics).HasColumnName("item_specifics").HasColumnType("jsonb").IsRequired();
         // Sell Price - numeric with 10 total digits, 2 decimal places (e.g., 12345678.99), cannot be NULL
         builder.Property(x => x.SellPrice).HasColumnName("sell_price").HasColumnType("numeric(10,2)").IsRequired();
-        // Processed flag - boolean with default value of FALSE (not processed yet)
-        builder.Property(x => x.SkuStatus).HasColumnName("processed").HasDefaultValue(false);
+        // Status flag - ENUM with default value of PENDING (not processed yet)
+        builder.Property(x => x.SkuStatus).HasColumnName("sku_status").HasDefaultValue(SkuStatuses.Pending);
         // Created At timestamp - defaults to current database time (NOW())
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
         // Unique index on SkuCode - ensures no duplicate SKU codes can exist
         builder.HasIndex(x => x.SkuCode).IsUnique();
-        // Regular index on Processed - speeds up queries filtering by processed/unprocessed status
+        // Regular index on sku_status - speeds up queries filtering by status
         builder.HasIndex(x => x.SkuStatus);
         // Regular index on CreatedAt - speeds up date-based queries and sorting by creation time
         builder.HasIndex(x => x.CreatedAt);
