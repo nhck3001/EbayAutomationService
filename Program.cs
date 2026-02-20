@@ -129,46 +129,8 @@ class Program
 
         while (hasMore && (maxBatches == null || batchNumber < maxBatches))
         {
-            batchNumber++;
-            Log.Information($"Processing batch {batchNumber}...");
-
-            // Get next batch of unprocessed SKUs
-            List<int> cleanSkus = new List<int>();
-            using (var scope = scopeFactory.CreateScope())
-            {
-                var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                cleanSkus = await appDbContext.Skus
-                .Where(sku => sku.Processed == false)
-                .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
-                .Take(batchSize)
-                .Select(sku => sku.Id)
-                .ToListAsync();
-            }
-            // Check if any 
-            if (cleanSkus.Count == 0)
-            {
-                hasMore = false;
-                Log.Information("Has processed all CLEAN Skus/batches");
-                break;
-            }
-            foreach (var skuId in cleanSkus)
-            {
-                using (var scope = scopeFactory.CreateScope())
-                {
-                    var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    var sku = await appDbContext.Skus.FindAsync(skuId);
-                    var title = sku.Title;
-                    var description = sku.Description;
-                    var images = sku.ImageUrls.ToList();
-                    var itemSpecifics = JsonConvert.DeserializeObject<Dictionary<string, string>>(sku.ItemSpecifics)!.ToDictionary(kvp => kvp.Key, kvp => new List<string> { kvp.Value });
-                    var sellPrice = sku.SellPrice;
-                    await ebayInventoryService.CreateOrUpdateInventoryItem(sku.SkuCode, title: title, description: description, images: images, itemSpecifics: itemSpecifics, 10);
-                    var offerId = await ebayOfferService.CreateOffer(sku.SkuCode, ebayCategoryId, sellPrice, "DEFAULT_LOCATION", "255527709013", "255527791013", "255527716013");
-                    await ebayOfferService.publishOffer(offerId, sku.SkuCode);
-                    sku.Processed = true;
-                    await appDbContext.SaveChangesAsync();
-                }
-            }
+           
+            
         }
     }
 
@@ -335,7 +297,7 @@ class Program
             ImageUrls = aiResult.Images?.ToArray() ?? Array.Empty<string>(),
             ItemSpecifics = JsonConvert.SerializeObject(itemSpecifics),
             SellPrice = aiResult.Sellprice,
-            Processed = false,
+            SkuStatus = SkuStatus.Pending,
             CreatedAt = DateTime.UtcNow
         };
         // Add to Sku table

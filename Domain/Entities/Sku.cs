@@ -16,10 +16,18 @@ public class Sku
 
     public decimal SellPrice { get; set; }
 
-    public bool Processed { get; set; }
-
+    public SkuStatus SkuStatus { get; set; } = SkuStatus.Pending;
     public DateTime CreatedAt { get; set; }
 
     // Navigation
     public Listing? Listing { get; set; }
+}
+public enum SkuStatus
+{
+    Pending,
+    InventoryCreated,
+    OfferCreated,
+    Published,
+    Failed,
+    Rejected
 }

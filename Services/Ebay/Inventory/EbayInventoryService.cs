@@ -1,5 +1,6 @@
 using System.Text;
 using EbayAutomationService.Services;
+using Microsoft.VisualBasic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Serilog;
@@ -16,7 +17,7 @@ public class EbayInventoryService
 
     // This is used to mass create InventoryItem, which is used to create listings later on
     // This represent a product, not the listing itself
-    public async Task CreateOrUpdateInventoryItem(
+    public async Task<bool> CreateOrUpdateInventoryItem(
         string sku,
         string title,
         string description,
@@ -50,43 +51,32 @@ public class EbayInventoryService
 
         var url = $"https://api.ebay.com/sell/inventory/v1/inventory_item/{sku}";
         var request = new HttpRequestMessage(HttpMethod.Put, url);
-
-        try
+        var response = await _api.SendAsync(request, jsonBody, true);
+        var responseText = await response.Content.ReadAsStringAsync();
+        // Success
+        if (response.IsSuccessStatusCode)
         {
-            var response = await _api.SendAsync(request,jsonBody,true);
-            var responseText = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
-            {
-                Log.Warning("Response:");
-                Console.WriteLine(responseText);
-
-                Log.Warning("InventoryItem API error");
-                Log.Warning($"SKU: {sku}");
-                Log.Warning($"Status: {(int)response.StatusCode}");
-                Log.Warning("Request body:");
-                Log.Warning(jsonBody);
-                Log.Warning("Response:");
-                Log.Warning(responseText);
-
-                throw new HttpRequestException(
-                    $"InventoryItem create/update failed for SKU {sku}"
-                );
-            }
-
             Log.Information($"InventoryItem created/updated for SKU: {sku}");
+            return true;
         }
-        catch (Exception ex)
+        // handling errors
+        var responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
+        var error = responseJson["errors"]!.FirstOrDefault();
+
+        // Mostlikely a listing error
+        if (error?["errorId"].Value<int>() == 25718)
         {
-            Log.Warning($"Exception during InventoryItem creation {sku} MESSAGE {ex.Message}");
-
-            if (ex.InnerException != null)
+            if (error["message"].Value<string>().Contains("Invalid value for title"))
             {
-                Log.Warning($"Inner: {ex.InnerException.Message}");
+                // Business logic. Log and then Ignore for now
+                Log.Warning($"Invalid title value. {error["message"]}. Mark as processed and move on");
+                return false;   
             }
-
-            throw; // rethrow so you don't silently continue
         }
+
+        // For all other exceptions log and throw
+        Log.Warning($"Create inventory for {sku} fail. Message: {error["message"]}.");
+        throw new HttpRequestException($"InventoryItem create/update failed for SKU {sku}");
     }
 
 

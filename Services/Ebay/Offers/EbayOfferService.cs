@@ -160,7 +160,7 @@ public class EbayOfferService
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
     /// <exception cref="Exception"></exception>
-    public async Task publishOffer(string offerId, string sku)
+    public async Task<bool> publishOffer(string offerId, string sku)
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"https://api.ebay.com/sell/inventory/v1/offer/{offerId}/publish");
         // Set the content type, and content-language header for the content as required in the ebay doc
@@ -169,7 +169,7 @@ public class EbayOfferService
         if (response.IsSuccessStatusCode)
         {
             Log.Information($"Publish offer {sku} successfully");
-            return;
+            return true;
         }
         // Error handling
         var responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
@@ -179,7 +179,9 @@ public class EbayOfferService
         {
             // Business logic. Log and then Ignore for now
             Log.Warning($"Publish offer {sku} fail. User error. {response.StatusCode}. Mark as processed and move on");
-            return;
+            Log.Warning($"Publish offer {sku} fail. {response.Content}");
+            throw new HttpRequestException($"Publish offer {sku} failed. Please handle error");
+            return true;
         }
 
         // Other errors, log and throw
