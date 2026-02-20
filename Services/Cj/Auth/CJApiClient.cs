@@ -189,6 +189,7 @@ public class CJApiClient
             {
                 return null;
             }
+            return null;
         }
     }
     // By Default, Loop through 50 page, 50 products each page to LOOK for PIDs only
