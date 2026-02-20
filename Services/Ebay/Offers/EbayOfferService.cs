@@ -2,6 +2,7 @@ using System.Text;
 using EbayAutomationService.Services;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Serilog;
 
 public class EbayOfferService
 {
@@ -28,6 +29,8 @@ public class EbayOfferService
         string returnPolicyId
     )
     {
+        Log.Information($"Trying to create an offer object for sku {sku}");
+        
         var body = new
         {
             sku = sku,
@@ -53,61 +56,48 @@ public class EbayOfferService
         };
 
         var jsonBody = JsonConvert.SerializeObject(body);
-        Console.WriteLine("CreateOffer payload:\n" + jsonBody);
-
         var request = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/sell/inventory/v1/offer");
-        HttpResponseMessage response;
-        string responseText;
-        try
-        {
-            response = await _api.SendAsync(request, jsonBody, true);
-            responseText = await response.Content.ReadAsStringAsync();
-        }
-        catch (HttpRequestException)
-        {
-            throw;
-        }
+        HttpResponseMessage response = await _api.SendAsync(request, jsonBody, true);
+        string responseText = await response.Content.ReadAsStringAsync();
 
-        // Created successfully
-        if (response.IsSuccessStatusCode)
+        // Success case
+        if (!response.IsSuccessStatusCode)
         {
-            var json = JObject.Parse(responseText);
-            var offerId = json["offerId"]!.ToString();
-            return offerId;
-        }
-            if (!response.IsSuccessStatusCode)
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"eBay API error: {response.StatusCode}");
-                Console.WriteLine($"Response: {errorContent}");
-                throw new HttpRequestException($"eBay API request failed with status code {response.StatusCode}. Response: {errorContent}");
-            }
-        else
-        {
-            Console.WriteLine("CreateOffer failed:");
-            Console.WriteLine(responseText);
-
+            // handling
+            Log.Warning($"Failed: {responseText}");
+            // Check for specific error codes
             var errorJson = JObject.Parse(responseText);
             var error = errorJson["errors"]?.FirstOrDefault();
 
             if (error?["errorId"]?.Value<int>() == 25002)
             {
                 // Offer already exists → extract offerId
-                var offerId = error["parameters"]
-                    ?.FirstOrDefault(p => p["name"]?.ToString() == "offerId")
-                    ?["value"]
-                    ?.ToString();
+                var existingOfferId = error["parameters"]?.FirstOrDefault(p => p["name"]?.ToString() == "offerId")?["value"]?.ToString();
 
-                if (!string.IsNullOrEmpty(offerId))
+                if (!string.IsNullOrEmpty(existingOfferId))
                 {
-                    Console.WriteLine($"Offer already exists. Publishing offer {offerId}");
-                    return offerId;
+                    Log.Information($"Offer already exists for sku {sku}. Using existing offerId {existingOfferId}");
+                    return existingOfferId;
                 }
+                throw new HttpRequestException("Error");
             }
-
-            throw new HttpRequestException("CreateOffer failed");
+            else
+            {
+                throw new HttpRequestException("Error");
+            }
         }
 
+        var json = JObject.Parse(responseText);
+        var offerId = json["offerId"]?.ToString();
+
+        if (!string.IsNullOrEmpty(offerId))
+            {
+                Log.Information($"Created an offer object for {sku} successfully with offerId {offerId}");
+                return offerId;
+            }
+
+        Log.Error($"Offer created but no offerId returned for sku {sku}");
+        throw new InvalidOperationException("Offer created but no offerId returned");
         
     }
 
@@ -170,23 +160,31 @@ public class EbayOfferService
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
     /// <exception cref="Exception"></exception>
-    public async Task publishOffer(string offerId)
+    public async Task publishOffer(string offerId, string sku)
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"https://api.ebay.com/sell/inventory/v1/offer/{offerId}/publish");
         // Set the content type, and content-language header for the content as required in the ebay doc
 
         var response = await _api.SendAsync(request);
-        var responseJson = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
+        if (response.IsSuccessStatusCode)
         {
-            // Throws a more informative exception, including the HTTP status code
-            throw new HttpRequestException(
-                $"eBay API request failed with status code {response.StatusCode}. Response: {response.Content}",
-                null,
-                response.StatusCode
-            );
+            Log.Information($"Publish offer {sku} successfully");
+            return;
         }
+        // Error handling
+        var responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
+        var error = responseJson["errors"]!.FirstOrDefault();
+
+        if (error?["errorId"].Value<int>() == 25002)
+        {
+            // Business logic. Log and then Ignore for now
+            Log.Warning($"Publish offer {sku} fail. User error. {response.StatusCode}. Mark as processed and move on");
+            return;
+        }
+
+        // Other errors, log and throw
+        Log.Warning($"Publish offer {sku} fail. {response.Content}");
+        throw new HttpRequestException($"Publish offer {sku} failed. Please handle error");
     }
     /// <summary>
     /// Get all offers for a specified SKU. 

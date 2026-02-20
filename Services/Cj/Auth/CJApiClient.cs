@@ -26,9 +26,9 @@ public class CJApiClient
         try
         {
             var elapsed = DateTime.UtcNow - _lastRequestTime;
-            if (elapsed.TotalMilliseconds < 1100)
+            if (elapsed.TotalMilliseconds < 1500)
             {
-                await Task.Delay(1100 - (int)elapsed.TotalMilliseconds);
+                await Task.Delay(1500 - (int)elapsed.TotalMilliseconds);
             }
 
             await action(); //  the ACTUAL CJ call happens here

@@ -36,22 +36,37 @@ public static string BuildPrompt(string input, string requiredAspectsJson, strin
     ━━━━━━━━━━━━━━━━━━
 
     Required aspects: {requiredAspectsJson}
-    1. For brand
-    • If Brand is a required aspect and no brand information exists in input
-    • Set Brand = ""Unbranded""
-    • Do NOT reject for missing Brand
+    CRITICAL RULES FOR HANDLING CONFLICTING DATA:
+    ------------------------------------------------
+    1. The input contains multiple data sources: ProductDescription, ProductSpecification, and other fields
+    2. When there are CONFLICTS between values:
+    - ALWAYS TRUST ProductDescription FIRST (this is the most accurate source)
+    - THEN trust ProductSpecification 
+    - IGNORE conflicting values from other fields if they contradict these sources
     
-    2. For Type
-    • If ""Type"" is a required aspect, infer it from the product name
-    • Do not leave Type blank if it can be inferred
+    3. For DIMENSIONS specifically:
+    - Look in ProductDescription for dimension information (often in text like '12"" x 36"" x 18""')
+    - Look in ProductSpecification for structured dimension data
+    - If ProductDescription contains detailed dimensions, USE THOSE even if other fields have different values
+    - If product dimensions (height/length/width) are NOT available in ProductDescription or ProductSpecification:
+        * Look for ""Packing Dimension"" or ""Package Dimension"" information
+        * Packing dimensions can be used as a FALLBACK for product dimensions
+        * Add a note in the description that these are packed dimensions
+    - Convert all dimensions to consistent units (inches), include unit.
 
-    3. For others. 
-    • Use ONLY values present in {input}
-    • Do NOT invent missing values
-    • If any required aspect cannot be infered → REJECT_ASPECT
-    
-    If Stage 2 fails → return REJECT_CATEGORY immediately.
+    4. For each required aspect:
+    • Brand: If no brand information exists, set Brand = ""Unbranded""
+    • Type: Infer from product name if needed
+    • All other aspects: Use values from ProductDescription or ProductSpecification FIRST.
+    • If a required aspect cannot be found in ANY source → REJECT_ASPECT
 
+    5. COMPARISON RULE:
+    - Do NOT reject because input fields don't match description
+    - INSTEAD: Use the description values as the source of truth
+    - The input fields may contain placeholder/default values (like '4 in')
+    - Override them with what you find in ProductDescription
+
+If Stage 2 fails → return REJECT_ASPECT immediately.
     ━━━━━━━━━━━━━━━━━━
     TITLE RULES
     ━━━━━━━━━━━━━━━━━━

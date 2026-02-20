@@ -2,6 +2,7 @@ using System.Text;
 using EbayAutomationService.Services;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Serilog;
 
 // This class is used to talk to the Inventory API
 public class EbayInventoryService
@@ -24,6 +25,8 @@ public class EbayInventoryService
         int quantity
     )
     {
+        Log.Information($"Trying to create Inventory Item sku {sku}");
+
         var body = new
         {
             product = new
@@ -55,33 +58,31 @@ public class EbayInventoryService
 
             if (!response.IsSuccessStatusCode)
             {
-                Console.WriteLine("Response:");
+                Log.Warning("Response:");
                 Console.WriteLine(responseText);
 
-                Console.WriteLine("InventoryItem API error");
-                Console.WriteLine($"SKU: {sku}");
-                Console.WriteLine($"Status: {(int)response.StatusCode} {response.StatusCode}");
-                Console.WriteLine("Request body:");
-                Console.WriteLine(jsonBody);
-                Console.WriteLine("Response:");
-                Console.WriteLine(responseText);
+                Log.Warning("InventoryItem API error");
+                Log.Warning($"SKU: {sku}");
+                Log.Warning($"Status: {(int)response.StatusCode}");
+                Log.Warning("Request body:");
+                Log.Warning(jsonBody);
+                Log.Warning("Response:");
+                Log.Warning(responseText);
 
                 throw new HttpRequestException(
                     $"InventoryItem create/update failed for SKU {sku}"
                 );
             }
 
-            Console.WriteLine($"InventoryItem created/updated for SKU: {sku}");
+            Log.Information($"InventoryItem created/updated for SKU: {sku}");
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Exception during InventoryItem creation");
-            Console.WriteLine($"SKU: {sku}");
-            Console.WriteLine($"Message: {ex.Message}");
+            Log.Warning($"Exception during InventoryItem creation {sku} MESSAGE {ex.Message}");
 
             if (ex.InnerException != null)
             {
-                Console.WriteLine($"Inner: {ex.InnerException.Message}");
+                Log.Warning($"Inner: {ex.InnerException.Message}");
             }
 
             throw; // rethrow so you don't silently continue
