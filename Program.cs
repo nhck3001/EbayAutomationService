@@ -19,21 +19,26 @@ class Program
     {
         // Create a global logger that will automatically log everything to a file on top of outputting to the console
         Log.Logger = new LoggerConfiguration().MinimumLevel.Information().WriteTo.Console().
-        WriteTo.File("logs/log-.txt",rollingInterval: RollingInterval.Day,retainedFileCountLimit: 7).CreateLogger();
-
+        WriteTo.File(
+            "logs/log-.txt",
+            rollingInterval: RollingInterval.Day,
+            retainedFileCountLimit: 7,
+            outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}")
+        .CreateLogger();
         // Host.CreateDefaultBuilder(args) -> Load json from appsettings.json into memory as a Dictionary.
         // context give you configuration + environment info. Ex: context.Configuration["ConnectionStrings:DefaultConnection"]
         // services is a dependency injection container
 
         var host = Host.CreateDefaultBuilder(args)
+
             .ConfigureServices((context, services) =>
             {
-                
+
                 // Register the database context
                 // Whenever AppDbContext is needed, created using this connection string 'context.Configuration.GetConnectionString("DefaultConnection")'
                 services.AddDbContext<AppDbContext>(options =>
                 {
-                options.UseNpgsql(context.Configuration.GetConnectionString("DefaultConnection"));
+                    options.UseNpgsql(context.Configuration.GetConnectionString("DefaultConnection"));
                 });
                 // Add a custom service DatabaseTestService.
                 // Whenever a DatabaseTestService object is needed, automatically create it
@@ -60,10 +65,11 @@ class Program
                 services.AddScoped<EbayCategoryService>();
                 services.AddScoped<DeepSeekClient>(sp => new DeepSeekClient(Environment.GetEnvironmentVariable("DEEPSEEK_API_KEY")!));
 
-                services.AddScoped<EbayInventoryService>();
+                services.AddScoped<EbayInventoryApiClient>();
                 services.AddScoped<EbayOfferService>();
                 services.AddScoped<EbayPolicyService>();
                 services.AddScoped<DatabaseTestService>();
+                services.AddScoped<CreateInventoryUseCase>();
             })
             .Build();
 
@@ -103,13 +109,12 @@ class Program
                 break;
 
 
-            case "skupending":
+            case "createinventoryitem":
                 Log.Information("Start process sku from PENDING -> create ebay InventoryItem");
                 using (var scope = host.Services.CreateScope())
                 {
-                    var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
-                    var ebayInventorySerivce = scope.ServiceProvider.GetRequiredService<EbayInventoryService>();
-                    await CreateInventoryItem(scopeFactory, ebayInventorySerivce);
+                    var useCase = scope.ServiceProvider.GetRequiredService<CreateInventoryUseCase>();
+                    await useCase.ExecuteAsync();
                 }
                 break;
 
@@ -236,58 +241,6 @@ class Program
                         sku.OfferId = result.OfferId;
                         await appDbContext.SaveChangesAsync();
                     }
-                }
-            }
-        }
-    }
-    static async Task CreateInventoryItem(IServiceScopeFactory scopeFactory, EbayInventoryService ebayInventoryService, int batchSize = 20, int? maxBatches = null)
-    {
-        int batchNumber = 0;
-        bool hasMore = true;
-
-        while (hasMore && (maxBatches == null || batchNumber < maxBatches))
-        {
-
-            batchNumber++;
-            Log.Information($"Processing PENDING SKU batch #{batchNumber}...");
-            // Get next batch of unprocessed SKUs
-            List<int> penndingSkuIds = new List<int>();
-            using (var scope = scopeFactory.CreateScope())
-            {
-                var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                penndingSkuIds = await appDbContext.Skus
-                .Where(sku => sku.SkuStatus == SkuStatuses.Pending)
-                .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
-                .Take(batchSize)
-                .Select(s => s.Id)
-                .ToListAsync();
-            }
-            if (penndingSkuIds.Count == 0)
-            {
-                hasMore = false;
-                Log.Information("Has processed all PENDING Skus/batches");
-                break;
-            }
-            // Try to create InventoryItem. 
-            // if successful, PENDING -> INVETORYCREATED
-            // If not either PENDING -> REJECTED or PENDING -> FAILED denpending on failure reasons
-            foreach (var skuId in penndingSkuIds)
-            {
-                using (var scope = scopeFactory.CreateScope())
-                {
-                    var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    var sku = await appDbContext.Skus.FindAsync(skuId);
-                    var itemSpecifics = JsonConvert.DeserializeObject<Dictionary<string, string>>(sku.ItemSpecifics)!.ToDictionary(kvp => kvp.Key, kvp => new List<string> { kvp.Value });
-                    var result = await ebayInventoryService.CreateOrUpdateInventoryItem(
-                                        sku: sku.SkuCode,
-                                        sku.Title,
-                                        sku.Description,
-                                        sku.ImageUrls.ToList(),
-                                        itemSpecifics,
-                                        10);
-                    // Mark SKU after PENDING
-                    sku.SkuStatus = result;
-                    await appDbContext.SaveChangesAsync();
                 }
             }
         }
