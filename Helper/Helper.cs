@@ -1,7 +1,15 @@
 using Newtonsoft.Json.Linq;
 
 namespace EbayAutomationService.Helper;
-
+//"shoe organizer"
+//"shoe storage"
+//"shoe rack"
+//"shoe cabinet"
+//"shoe shelf"
+//"shoe stand"
+//"shoe holder"
+//"shoe tower"
+//"shoe bench"
 public static class Helper
 {
     public static string GetAspectJson()
@@ -95,7 +103,7 @@ public static class Helper
         // Get the correct category
         var obj = JObject.Parse(fullJson);
         var categoriesList = obj["Categories"] as JArray;
-        var categoryName = categoriesList?.FirstOrDefault(category => category["EbayCategoryId"]?.ToString() == ebayCategoryId)["Name"].ToString();
+        var categoryName = categoriesList?.FirstOrDefault(category => category["EbayCategoryId"]?.ToString() == ebayCategoryId)["CategoryName"].ToString();
         return categoryName;
     }
 };

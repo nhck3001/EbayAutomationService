@@ -7,7 +7,7 @@ using EbayAutomationService.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Logging;
+using Serilog;
 using EbayAutomationService.Helper;
 using EbayAutomationService.Domain;
 using Npgsql;
@@ -17,15 +17,24 @@ class Program
 {
     static async Task Main(string[] args)
     {
+        // Create a global logger that will automatically log everything to a file on top of outputting to the console
+        Log.Logger = new LoggerConfiguration().MinimumLevel.Information().WriteTo.Console().
+        WriteTo.File("logs/log-.txt",rollingInterval: RollingInterval.Day,retainedFileCountLimit: 7).CreateLogger();
+
         // Host.CreateDefaultBuilder(args) -> Load json from appsettings.json into memory as a Dictionary.
         // context give you configuration + environment info. Ex: context.Configuration["ConnectionStrings:DefaultConnection"]
         // services is a dependency injection container
+
         var host = Host.CreateDefaultBuilder(args)
             .ConfigureServices((context, services) =>
             {
+                
                 // Register the database context
                 // Whenever AppDbContext is needed, created using this connection string 'context.Configuration.GetConnectionString("DefaultConnection")'
-                services.AddDbContext<AppDbContext>(options => options.UseNpgsql(context.Configuration.GetConnectionString("DefaultConnection")));
+                services.AddDbContext<AppDbContext>(options =>
+                {
+                options.UseNpgsql(context.Configuration.GetConnectionString("DefaultConnection"));
+                });
                 // Add a custom service DatabaseTestService.
                 // Whenever a DatabaseTestService object is needed, automatically create it
                 services.AddScoped<DatabaseTestService>();
@@ -75,8 +84,9 @@ class Program
                 // Instances will last till the end of the scope, then disposed
                 using (var scope = host.Services.CreateScope())
                 {
+                    var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
                     var cjApiClient = scope.ServiceProvider.GetRequiredService<CJApiClient>();
-                    await RunCatalogCrawler(cjApiClient, 1, "shoe organizer");
+                    await RunCatalogCrawler(scopeFactory,cjApiClient, 1, "shoe tower");
                 }
                 break;
 
@@ -84,228 +94,306 @@ class Program
             case "cleansku":
                 using (var scope = host.Services.CreateScope())
                 {
+                    var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
                     var cjApiClient = scope.ServiceProvider.GetRequiredService<CJApiClient>();
                     var deepSeekClient = scope.ServiceProvider.GetRequiredService<DeepSeekClient>();
                     var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    await CleanSku(cjApiClient, deepSeekClient, appDbContext, "43506",maxBatches:1);
-
+                    await CleanSku(scopeFactory,cjApiClient, deepSeekClient, "43506");
                 }
                 break;
 
 
-            case "ebay":
-            //var filePath = "listingCandidates.jsonl";
-            //if (!File.Exists(filePath))
-            //{
-            //    Console.WriteLine($"File path doesn't exist {filePath}");
-            //}
-            //var lines = await File.ReadAllLinesAsync(filePath);
-            //for (int i = 35; i < lines.Length; i++)
-            //{
-            //    var product = JObject.Parse(lines[i]);
-            //    var title = (string)product["title"]!;
-            //    var description = (string)product["description"];
-            //    var images = product["images"]?.ToObject<List<string>>() ?? new List<string>();
-            //
-            //    var required = product["requiredFields"]?.ToObject<Dictionary<string, string>>() ?? new Dictionary<string, string>();
-            //    var recommended = product["recommendedFields"]?.ToObject<Dictionary<string, string>>() ?? new Dictionary<string, string>();
-            //
-            //    var allFields = required.Concat(recommended).ToDictionary(kv => kv.Key, kv => new List<String> { kv.Value });
-            //
-            //    await ebayInventoryService.CreateOrUpdateInventoryItem(sku: i.ToString(), title: title, description: description, images: images,
-            //                                      itemSpecifics: allFields, 10);
-            //    var price = product["sellPrice"]!.ToObject<decimal>();
-            //    var offerId = await ebayOfferSerivce.CreateOffer(i.ToString(), "43506", price + 3, "DEFAULT_LOCATION", "255527709013", "255527791013", "255527716013");
-            //    await ebayOfferSerivce.publishOffer(offerId);
-            //}
-            //break;
-
+            case "skupending":
+                Log.Information("Start process sku from PENDING -> create ebay InventoryItem");
+                using (var scope = host.Services.CreateScope())
+                {
+                    var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
+                    var ebayInventorySerivce = scope.ServiceProvider.GetRequiredService<EbayInventoryService>();
+                    await CreateInventoryItem(scopeFactory, ebayInventorySerivce);
+                }
+                break;
+        
             case "test":
+                using (var scope = host.Services.CreateScope())
+                {
+                    var cjApiClient = scope.ServiceProvider.GetRequiredService<CJApiClient>();
+
+                    var x = await cjApiClient.GetProductDetailAsync("CJCC26903710001", isProductSku:false);
+                    var xx = 10;
+                }
                 break;
         }
+    }
+    static async Task CreateInventoryItem(IServiceScopeFactory scopeFactory, EbayInventoryService ebayInventoryService, int batchSize = 20, int? maxBatches = null)
+    {
+        int batchNumber = 0;
+        bool hasMore = true;
 
+        while (hasMore && (maxBatches == null || batchNumber < maxBatches))
+        {
+
+            batchNumber++;
+            Log.Information($"Processing PENDING SKU batch #{batchNumber}...");
+            // Get next batch of unprocessed SKUs
+            List<Sku> penndingSkus = new List<Sku>();
+            using (var scope = scopeFactory.CreateScope())
+            {
+                var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                penndingSkus = await appDbContext.Skus
+                .Where(sku => sku.SkuStatus == SkuStatuses.Pending)
+                .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
+                .Take(batchSize)
+                .ToListAsync();
+            }
+            if (penndingSkus.Count == 0)
+            {
+                hasMore = false;
+                Log.Information("Has processed all PENDING Skus/batches");
+                break;
+            }
+            // Try to create InventoryItem. 
+            // if successful, PENDING -> INVETORYCREATED
+            // If not either PENDING -> REJECTED or PENDING -> FAILED denpending on failure reasons
+            foreach (var sku in penndingSkus)
+            {
+                using (var scope = scopeFactory.CreateScope())
+                {
+                    var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    var itemSpecifics = JsonConvert.DeserializeObject<Dictionary<string, string>>(sku.ItemSpecifics)!.ToDictionary(kvp => kvp.Key, kvp => new List<string> { kvp.Value });
+                    var result = await ebayInventoryService.CreateOrUpdateInventoryItem(
+                                        sku: sku.SkuCode,
+                                        sku.Title,
+                                        sku.Description,
+                                        sku.ImageUrls.ToList(),
+                                        itemSpecifics,
+                                        10);
+                    // Mark SKU after PENDING
+                    sku.SkuStatus = result;
+                    await appDbContext.SaveChangesAsync();
+                }
+            }
+        }
     }
 
-    // These extract Variant Sku from PIDs.
-    static async Task CleanSku(CJApiClient cjClient, DeepSeekClient deepSeekClient, AppDbContext context, string ebayCategoryId, int batchSize = 20, int? maxBatches = null)
+
+        // These extract Variant Sku from PIDs.
+        static async Task CleanSku(IServiceScopeFactory scopeFactory, CJApiClient cjClient, DeepSeekClient deepSeekClient, string ebayCategoryId, int batchSize = 20, int? maxBatches = null)
+        {
+
+            // Get required and recommended aspects
+            var requiredAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: ebayCategoryId, aspect: "RequiredAspects");
+            var recommendedAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: ebayCategoryId, aspect: "RecommendedAspects");
+            var categoryName = await Helper.GetEbayCategoryName(ebayCategoryId);
+
+            int batchNumber = 0;
+            bool hasMore = true;
+
+            while (hasMore && (maxBatches == null || batchNumber < maxBatches))
+            {
+                batchNumber++;
+                Log.Information($"Processing batch {batchNumber}...");
+
+                // Get next batch of unprocessed SKUs
+                List<int> dirtySkuIds = new List<int>();
+                using (var scope = scopeFactory.CreateScope())
+                {
+                    var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    dirtySkuIds = await appDbContext.DirtySkus
+                    .Where(sku => sku.Processed == false)
+                    .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
+                    .Take(batchSize)
+                    .Select(s => s.Id)
+                    .ToListAsync();
+
+                }
+
+
+                if (dirtySkuIds.Count == 0)
+                {
+                    hasMore = false;
+                    Log.Information("Has processed all dirty Skus/batches");
+                    break;
+                }
+
+                await ProcessBatch(scopeFactory, dirtySkuIds, cjClient, deepSeekClient, requiredAspects, recommendedAspects, categoryName);
+            }
+        }
+    
+    private static async Task ProcessBatch(IServiceScopeFactory scopeFactory, List<int> dirtySkuIds, CJApiClient cjClient, DeepSeekClient deepSeekClient, string requiredAspects, string recommendedAspects, string categoryName)
+    {
+        foreach (var dirtySkuId in dirtySkuIds)
+        {
+            await ProcessSingleSku(scopeFactory, dirtySkuId, cjClient, deepSeekClient, requiredAspects, recommendedAspects, categoryName);
+            using (var scope = scopeFactory.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var dirtySku = await context.DirtySkus.FindAsync(dirtySkuId);
+                dirtySku.Processed = true;
+                await context.SaveChangesAsync();
+            }
+        }
+    }
+    private static async Task ProcessSingleSku(IServiceScopeFactory scopeFactory, int dirtySkuId, CJApiClient cjClient, DeepSeekClient deepSeekClient, string requiredAspectsForPrompt, string recommendedAspectsForPrompt, string categoryName)
+    {
+
+            CjProductDetailResponse productInfo = new CjProductDetailResponse();
+            using (var scope = scopeFactory.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var dirtySku = await context.DirtySkus.FindAsync(dirtySkuId);
+                Log.Information($"Fetching product info for sku {dirtySku.Sku}");
+                productInfo = await cjClient.GetProductDetailAsync(dirtySku.Sku, isProductSku: true);
+
+                if (productInfo == null)
+                {
+                    Log.Information($"Skip sku {dirtySku.Sku}. Product has been removed from shell");
+                    return;
+                }
+                else if (productInfo.Data.Variants == null)
+                {
+                    Log.Information($"Skip sku {dirtySku.Sku} - no variants");
+                    return;
+                }
+            }                
+            foreach (var variant in productInfo.Data.Variants)
+            {
+                await ProcessVariant(scopeFactory, variant, dirtySkuId, productInfo, cjClient, deepSeekClient, requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName);       
+                break; // Only process 1 variant per product processed      
+            }
+                
+        
+        }   
+        
+    
+
+    private static async Task ProcessVariant(IServiceScopeFactory scopeFactory,CjVariant variant, int dirtySkuId,
+        CjProductDetailResponse productInfo, CJApiClient cjClient, DeepSeekClient deepSeekClient,
+         string requiredAspectsForPrompt, string recommendedAspectsForPrompt,
+        string categoryName)
+        
     {
         var settings = new JsonSerializerSettings
         {
             NullValueHandling = NullValueHandling.Ignore  
         };
+        try
+        {
+            // Check US availability
+            var stockResult = await cjClient.GetStockBySkuAsync(variant.VariantSku!);
+            var isAvailableUs = stockResult.Data?.Any(w => w.CountryCode.Contains("US")) ?? false;
 
-        // Get required and recommended aspects
-        var requiredAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: ebayCategoryId, aspect:"RequiredAspects");
-        var recommendedAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: ebayCategoryId, aspect:"RecommendedAspects");
-        var categoryName = await Helper.GetEbayCategoryName(ebayCategoryId);
-        
-        int batchNumber = 0;
-        bool hasMore = true;
-        
-        while (hasMore && (maxBatches == null || batchNumber < maxBatches))
-        {
-            batchNumber++;
-            Console.WriteLine($"Processing batch {batchNumber}...");
-            
-            // Get next batch of unprocessed SKUs
-            var dirtySkus = await context.DirtySkus
-                .Where(sku => sku.Processed == false)
-                .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
-                .Take(batchSize)
-                .ToListAsync();
-            
-            if (dirtySkus.Count == 0)
+            if (!isAvailableUs)
             {
-                hasMore = false;
-                Console.WriteLine("Has processed all dirty Skus/batches");
-                break;
+                Log.Information($"Reject sku {variant.VariantSku} not available in US");
+                return;
             }
-            
-            await ProcessBatch(dirtySkus, cjClient, deepSeekClient, context, requiredAspects, recommendedAspects, categoryName, settings);
+
+            // Build DeepSeek input
+            var deepSeekInput = DeepSeekInput.Build(productInfo.Data, variant);
+            if (deepSeekInput == null)
+            {
+                Log.Information($"Reject sku {variant.VariantSku} failed DeepSeekInput.Build");
+                return;
+            }
+
+            // Get AI validation
+            var deepSeekPrompt = DeepSeekService.BuildPrompt(
+                JsonConvert.SerializeObject(deepSeekInput, Formatting.Indented, settings),
+                requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName);
+
+            var deepSeekResult = await deepSeekClient.SendPrompt(deepSeekPrompt);
+            var aiResult = JsonConvert.DeserializeObject<AiEnrichmentResult>(deepSeekResult);
+
+            if (aiResult == null)
+            {
+                Log.Information($"{variant.VariantSku} cannot deserialize AI response");
+                return;
+            }
+
+            if (!aiResult.Valid)
+            {
+                Log.Information($"{variant.VariantSku} AI rejected: {aiResult.Message}");
+                return;
+            }
+
+            // Save to database
+            await SaveValidatedSku(scopeFactory, variant, dirtySkuId, productInfo, aiResult);
         }
-    }
-private static async Task ProcessBatch(List<DirtySku> dirtySkus, CJApiClient cjClient, DeepSeekClient deepSeekClient, AppDbContext context, string requiredAspects, string recommendedAspects, string categoryName, JsonSerializerSettings settings)
-    {
-        foreach (var dirtySku in dirtySkus)
+        // Catch database exception first
+        catch (DbUpdateException ex)
         {
-            await ProcessSingleSku(dirtySku, cjClient, deepSeekClient, context,requiredAspects, recommendedAspects, categoryName, settings);
+            if (ex.InnerException is PostgresException pg)
+            {
+                Log.Error($@"
+                            POSTGRES ERROR
+                            Code: {pg.SqlState}
+                            Message: {pg.MessageText}
+                            Detail: {pg.Detail}
+                            Where: {pg.Where}
+                            Constraint: {pg.ConstraintName}
+                            Column: {pg.ColumnName}
+                            Table: {pg.TableName}
+                            ");
+            }
+            else
+            {
+                Log.Error(ex, "Unknown database error");
+            }
         }
-    }
-    static async Task RunCatalogCrawler(CJApiClient cjClient, int ebayCategoryId, string productNameEn)
-    {
-        var pids = await cjClient.GetPids(ebayCategoryId, productNameEn, Helper.IsLikelyShoeOrganizer);
-    }
-    private static async Task ProcessSingleSku(DirtySku dirtySku, CJApiClient cjClient, DeepSeekClient deepSeekClient, AppDbContext context, string requiredAspectsForPrompt, string recommendedAspectsForPrompt, string categoryName, JsonSerializerSettings settings)
-    {
-        Console.WriteLine($"Fetching product info for sku {dirtySku.Sku}");
-        var productInfo = await cjClient.GetProductDetailAsync(dirtySku.Sku,isProductSku:true);
-        
-        if (productInfo.Data.Variants == null)
+        catch (Exception ex)
         {
-            Console.WriteLine($"Skip sku {dirtySku.Sku} - no variants");
-            dirtySku.Processed = true;
-            await context.SaveChangesAsync();
+
+            Log.Information($"Progaram.cs Error processing variant {variant.VariantSku}: {ex.Message}");
             return;
         }
-        
-        bool processedSuccessfully = false;
-        
-        foreach (var variant in productInfo.Data.Variants)
-        {
-            if (await ProcessVariant(variant, dirtySku, productInfo, cjClient, deepSeekClient,
-                context, requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName, settings))
-            {
-                processedSuccessfully = true;
-                break; // Successfully processed one variant
-            }
-        }
-        
-        if (!processedSuccessfully)
-        {
-            // Mark as processed even if no valid variants found
-            dirtySku.Processed = true;
-            await context.SaveChangesAsync();
-        }
     }
 
-        private static async Task<bool> SaveValidatedSku(CjVariant variant, DirtySku dirtySku, CjProductDetailResponse productInfo, AiEnrichmentResult aiResult, AppDbContext context)
+    private static async Task SaveValidatedSku(IServiceScopeFactory scopeFactory,CjVariant variant, int dirtySkuId, CjProductDetailResponse productInfo, AiEnrichmentResult aiResult)
+    {
+        var itemSpecifics = aiResult.RequiredFields.Concat(aiResult.RecommendedFields).ToDictionary(x => x.Key, x => x.Value);
+        var skuEntity = new Sku
         {
-            var itemSpecifics = aiResult.RequiredFields.Concat(aiResult.RecommendedFields).ToDictionary(x => x.Key, x => x.Value);
-
-            var skuEntity = new Sku
+            SkuCode = variant.VariantSku!,
+            Pid = productInfo.Data.Pid!,
+            Title = aiResult.Title,
+            Description = aiResult.Description,
+            ImageUrls = aiResult.Images?.ToArray() ?? Array.Empty<string>(),
+            ItemSpecifics = JsonConvert.SerializeObject(itemSpecifics),
+            SellPrice = aiResult.Sellprice,
+            SkuStatus = SkuStatuses.Pending,
+            CreatedAt = DateTime.UtcNow
+        };
+        // Add to Sku table
+        try
+        {
+            using (var scope = scopeFactory.CreateScope())
             {
-                SkuCode = variant.VariantSku!,
-                Pid = productInfo.Data.Pid!,
-                Title = aiResult.Title,
-                Description = aiResult.Description,
-                ImageUrls = aiResult.Images?.ToArray() ?? Array.Empty<string>(),
-                ItemSpecifics = JsonConvert.SerializeObject(itemSpecifics),
-                SellPrice = aiResult.Sellprice,
-                Processed = false,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            using var transaction = await context.Database.BeginTransactionAsync();
-            try
-            {
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 context.Skus.Add(skuEntity);
-                dirtySku.Processed = true;
                 await context.SaveChangesAsync();
-                await transaction.CommitAsync();
+                Log.Information($"Save qualified Sku {variant.VariantSku} successfully");
 
-                Console.WriteLine($"Saved {dirtySku.Sku} successfully");
-                return true;
+                return;
             }
-            catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
-            {
-                await transaction.RollbackAsync();
-                Console.WriteLine($"Duplicate SKU {variant.VariantSku} - skipping");
-                return false;
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                Console.WriteLine($"Error saving SKU {variant.VariantSku}: {ex.Message}");
-                return false;
-            }
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
+        {
+            Log.Information($"Duplicate SKU {variant.VariantSku} - skipping");
+            return;
         }
 
-private static async Task<bool> ProcessVariant(CjVariant variant, DirtySku dirtySku,
-    CjProductDetailResponse productInfo, CJApiClient cjClient, DeepSeekClient deepSeekClient,
-    AppDbContext context, string requiredAspectsForPrompt, string recommendedAspectsForPrompt,
-    string categoryName, JsonSerializerSettings settings)
-{
-    try
-    {
-        // Check US availability
-        var stockResult = await cjClient.GetStockBySkuAsync(variant.VariantSku!);
-        var isAvailableUs = stockResult.Data?.Any(w => w.CountryCode.Contains("US")) ?? false;
-        
-        if (!isAvailableUs)
+        catch (DbUpdateException ex)
         {
-            Console.WriteLine($"{variant.VariantSku} not available in US");
-            return false;
+            Log.Warning(ex.Message);
+            throw;
         }
-        
-        // Build DeepSeek input
-        var deepSeekInput = DeepSeekInput.Build(productInfo.Data, variant);
-        if (deepSeekInput == null)
-        {
-            Console.WriteLine($"{variant.VariantSku} failed DeepSeekInput.Build");
-            return false;
-        }
-        
-        // Get AI validation
-        var deepSeekPrompt = DeepSeekService.BuildPrompt(
-            JsonConvert.SerializeObject(deepSeekInput, Formatting.Indented, settings),
-            requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName);
-        
-        var deepSeekResult = await deepSeekClient.SendPrompt(deepSeekPrompt);
-        var aiResult = JsonConvert.DeserializeObject<AiEnrichmentResult>(deepSeekResult);
-        
-        if (aiResult == null)
-        {
-            Console.WriteLine($"{variant.VariantSku} cannot deserialize AI response");
-            return false;
-        }
-        
-        if (!aiResult.Valid)
-        {
-            Console.WriteLine($"{variant.VariantSku} AI rejected:");
-            return false;
-        }
-        
-        // Save to database
-        return await SaveValidatedSku(variant, dirtySku, productInfo, aiResult, context);
+
     }
-    catch (Exception ex)
+    static async Task RunCatalogCrawler(IServiceScopeFactory scopeFactory,CJApiClient cjClient, int ebayCategoryId, string productNameEn)
     {
-        Console.WriteLine($"Error processing variant {variant.VariantSku}: {ex.Message}");
-        return false;
+        var pids = await cjClient.GetPids(scopeFactory,ebayCategoryId, productNameEn, Helper.IsLikelyShoeOrganizer);
     }
 }
-}
-
 
     public class EbayCategoryNode
     {

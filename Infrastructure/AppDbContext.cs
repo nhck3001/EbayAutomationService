@@ -18,7 +18,6 @@ public class AppDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-
         modelBuilder.ApplyConfiguration(new CategoryConfiguration());
         modelBuilder.ApplyConfiguration(new DirtySkuConfiguration());
         modelBuilder.ApplyConfiguration(new SkuConfiguration());

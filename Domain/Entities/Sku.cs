@@ -16,10 +16,21 @@ public class Sku
 
     public decimal SellPrice { get; set; }
 
-    public bool Processed { get; set; }
-
+    public string SkuStatus { get; set; } = SkuStatuses.Pending;
     public DateTime CreatedAt { get; set; }
 
     // Navigation
     public Listing? Listing { get; set; }
+
+}
+public static class SkuStatuses
+{
+    public const string Pending = "PENDING";
+    public const string InventoryCreatedid = "InventoryCreated";
+    public const string Rejected = "REJECTED";
+
+    public const string OfferCreated = "OfferCreated";
+    public const string Published = "Published";
+    public const string Failed = "Failed";
+
 }

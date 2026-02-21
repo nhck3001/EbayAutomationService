@@ -3,8 +3,10 @@ using System.Text.Json;
 using EbayAutomationService.Helper;
 using EbayAutomationService.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using Npgsql;
+using Serilog;
 
 public class CJApiClient
 {
@@ -24,9 +26,9 @@ public class CJApiClient
         try
         {
             var elapsed = DateTime.UtcNow - _lastRequestTime;
-            if (elapsed.TotalMilliseconds < 1100)
+            if (elapsed.TotalMilliseconds < 1500)
             {
-                await Task.Delay(1100 - (int)elapsed.TotalMilliseconds);
+                await Task.Delay(1500 - (int)elapsed.TotalMilliseconds);
             }
 
             await action(); //  the ACTUAL CJ call happens here
@@ -64,40 +66,85 @@ public class CJApiClient
 
         await ExecuteWithCjRateLimitAsync(async () =>
         {
-            await AddAuthAsync(); // token refresh is now protected
-
-            var response = await _httpClient.GetAsync(endpoint);
-            var body = await response.Content.ReadAsStringAsync();
-            // Http error handling
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new Exception($"CJ HTTP error: {body}");
-            }
-
-            using var doc = JsonDocument.Parse(body);
-            if (doc.RootElement.TryGetProperty("code", out var codeEl))
-            {
-                var code = codeEl.GetInt32();
-                if (code != 200)
-                    throw new Exception($"CJ API error {code}: {body}");
-            }
-
             try
             {
-                result = JsonConvert.DeserializeObject<T>(body)!;
+                await AddAuthAsync(); // token refresh is now protected
+
+                var response = await _httpClient.GetAsync(endpoint);
+                var body = await response.Content.ReadAsStringAsync();
+                // Catch HttpRequestException
+                if (!response.IsSuccessStatusCode)
+                {
+                    throw new HttpRequestException($"CJ HTTP error: {body}");
+                }
+                using var doc = JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("code", out var codeEl))
+                {
+                    var code = codeEl.GetInt32();
+                    if (code != 200)
+                        throw new HttpRequestException($"CJ API error {code}: {body}");
+                    else if (code == 1600200)
+                    {
+                        throw new InvalidOperationException($"CJ API rate limit exceeded {body}");
+                    }
+                }
+
+                try
+                {
+                    result = JsonConvert.DeserializeObject<T>(body)!;
+                }
+                catch (Newtonsoft.Json.JsonException ex)
+                {
+                    // Log the error
+                    Log.Warning($"[ERROR] Failed to deserialize response to {typeof(T).Name}: {ex.Message}");
+                    Log.Warning($"[ERROR] Response body: {body}");
+
+                    // Return default value for T (null for reference types)
+                    result = default!;
+
+                    // Or throw a more meaningful exception
+                    throw new Exception($"Failed to parse CJ API response to {typeof(T).Name}", ex);
+                }
             }
-            catch (Newtonsoft.Json.JsonException ex)
+            catch (HttpRequestException ex)
             {
-                // Log the error
-                Console.WriteLine($"[ERROR] Failed to deserialize response to {typeof(T).Name}: {ex.Message}");
-                Console.WriteLine($"[ERROR] Response body: {body}");
-
-                // Return default value for T (null for reference types)
-                result = default!;
-
-                // Or throw a more meaningful exception
-                throw new Exception($"Failed to parse CJ API response to {typeof(T).Name}", ex);
+                Log.Warning(ex, $"HttpRequest fail for endpoint {endpoint}");
+                throw; // Throw up to parent to handle
             }
+            catch (InvalidOperationException ex)
+            {
+                if (ex.Message.Contains("rate limit"))
+                {
+                    Log.Information("Rate limit hit. Waiting 2 seconds and retrying once");
+                    await Task.Delay(2000);
+                    await ExecuteWithCjRateLimitAsync(async () =>
+                            {
+                                await AddAuthAsync();
+                                var response = await _httpClient.GetAsync(endpoint);
+                                var body = await response.Content.ReadAsStringAsync();
+                                
+                                if (!response.IsSuccessStatusCode)
+                                {
+                                    throw new HttpRequestException($"CJ HTTP error on retry: {body}");
+                                }
+                                
+                                using var doc = JsonDocument.Parse(body);
+                                if (doc.RootElement.TryGetProperty("code", out var codeEl))
+                                {
+                                    var code = codeEl.GetInt32();
+                                    if (code != 200)
+                                    {
+                                        throw new HttpRequestException($"CJ API error {code} on retry: {body}");
+                                    }
+                                }
+
+                                result = JsonConvert.DeserializeObject<T>(body)!;
+                            });
+                            
+                            Log.Information("Retry successful");
+                }
+            }
+
         });
 
         return result;
@@ -108,18 +155,43 @@ public class CJApiClient
     /// <summary>
     /// Get full product detail by sku
     /// </summary>
-    public Task<CjProductDetailResponse> GetProductDetailAsync(string sku, bool isProductSku = true)
+    public async Task<CjProductDetailResponse> GetProductDetailAsync(string sku, bool isProductSku = true)
     {
         // Default is variantSku
         var endpoint = $"product/query?variantSku={sku}&countryCode=US";
         if (isProductSku == true)
         {
             endpoint = $"product/query?productSku={sku}&countryCode=US";
-
         }
-        return GetAsync<CjProductDetailResponse>(endpoint);
+        try
+        {
+            var result = await GetAsync<CjProductDetailResponse>(endpoint);
+            return result;
+        }
+        // Product has been removed from cell. 
+        catch (HttpRequestException ex)
+        {
+            if (ex.Message.Contains("Product has been removed from shelves"))
+            {
+                return null;
+            }
+            // Catch other exception, do not swallow it
+            else
+            {
+                Log.Warning(ex, "Network error when fetching product {Sku}", sku);
+                throw;
+            }
+        }
+        // Catch rate limit error. After retry, simply return null
+        catch (InvalidOperationException ex)
+        {
+            if (ex.Message.Contains("rate limit exceeded"))
+            {
+                return null;
+            }
+            return null;
+        }
     }
-
     // By Default, Loop through 50 page, 50 products each page to LOOK for PIDs only
     // shoe rack DONE
     // shoe organizer DONE
@@ -134,6 +206,7 @@ public class CJApiClient
     // shoe storage shelf
     // shoe storage organizer
     public async Task<List<string>> GetPids(
+        IServiceScopeFactory scopeFactory,
         int ebayCategoryId,
         string productName,
         Func<string, bool> productFilter,
@@ -147,33 +220,48 @@ public class CJApiClient
         for (int currentPage = 1; currentPage <= page; currentPage++)
         {
             Console.WriteLine($"Scanning page {currentPage}...");
-
-            var response = await GetAsync<CjProductListV2Response>($"product/listV2?" +
-                                                                $"keyWord={productName}&" +
-                                                                $"page={currentPage}&" +
-                                                                "countryCode=US&" +
-                                                                $"addMarkStatus={addMarkStatus}&" +
-                                                                $"size={size}&" +
-                                                                "verifiedWarehouse=1&" +
-                                                                "startWarehouseInventory=20&"
-                                                                );
-
-            if (response?.Data?.Content[0].ProductList == null || response.Data.Content[0].ProductList.Count == 0)
+            try
             {
-                Console.WriteLine("No products returned. Possibly end of category.");
-                break;
-            }
-            // Check if product is likely a {productName)
-            var productList = response.Data.Content[0].ProductList;
-            foreach (var product in productList)
-            {
-                var productNameEn = product.NameEn;
-                if (productFilter(productNameEn))
+                var response = await GetAsync<CjProductListV2Response>($"product/listV2?" +
+                                                       $"keyWord={productName}&" +
+                                                       $"page={currentPage}&" +
+                                                       "countryCode=US&" +
+                                                       $"addMarkStatus={addMarkStatus}&" +
+                                                       $"size={size}&" +
+                                                       "verifiedWarehouse=1&" +
+                                                       "startWarehouseInventory=20&"
+                                                       );
+
+
+                if (response?.Data?.Content[0].ProductList == null || response.Data.Content[0].ProductList.Count == 0)
                 {
-                    // If the product is likely a {productName}
-                    // Save it to the database
-                    await SaveDirtySkuAsync(product.Sku, ebayCategoryId);
+                    Log.Information("No products returned. Possibly end of category.");
+                    break;
                 }
+
+                // Check if product is likely a {productName)
+                var productList = response.Data.Content[0].ProductList;
+                foreach (var product in productList)
+                {
+                    var productNameEn = product.NameEn;
+                    if (productFilter(productNameEn))
+                    {
+                        // If the product is likely a {productName}
+                        // Save it to the database
+                        using (var scope = scopeFactory.CreateScope())
+                        {
+                            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                            await SaveDirtySkuAsync(product.Sku, ebayCategoryId);
+
+                        }
+                    }
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                Log.Warning(ex, "HttpRequest error in GetPids");
+                // Continue. A failed request to Cj doesn't stop crawling
+                await Task.Delay(5000);
             }
             // save to the database
             await Task.Delay(600);
@@ -209,7 +297,7 @@ public class CJApiClient
             // Safe to ignore
             if (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
             {
-                Console.WriteLine("Duplicate key. Move on");
+                Log.Information("Duplicate key. Move on");
             } 
         }
     }
