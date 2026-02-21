@@ -19,7 +19,7 @@ public class EbayOfferService
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
     /// <exception cref="Exception"></exception>
-    public async Task<string> CreateOffer(
+    public async Task<(string Status, string? OfferId)> CreateOffer(
         string sku,
         string categoryId,
         decimal price,
@@ -59,46 +59,31 @@ public class EbayOfferService
         var request = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/sell/inventory/v1/offer");
         HttpResponseMessage response = await _api.SendAsync(request, jsonBody, true);
         string responseText = await response.Content.ReadAsStringAsync();
+        var responseJson = JObject.Parse(responseText);
 
-        // Success case
-        if (!response.IsSuccessStatusCode)
+        if (response.IsSuccessStatusCode)
         {
-            // handling
-            Log.Warning($"Failed: {responseText}");
-            // Check for specific error codes
-            var errorJson = JObject.Parse(responseText);
-            var error = errorJson["errors"]?.FirstOrDefault();
-
-            if (error?["errorId"]?.Value<int>() == 25002)
-            {
-                // Offer already exists → extract offerId
-                var existingOfferId = error["parameters"]?.FirstOrDefault(p => p["name"]?.ToString() == "offerId")?["value"]?.ToString();
-
-                if (!string.IsNullOrEmpty(existingOfferId))
-                {
-                    Log.Information($"Offer already exists for sku {sku}. Using existing offerId {existingOfferId}");
-                    return existingOfferId;
-                }
-                throw new HttpRequestException("Error");
-            }
-            else
-            {
-                throw new HttpRequestException("Error");
-            }
+            Log.Information($"Create offer for {sku} successfully");
+            return (SkuStatuses.OfferCreated, responseJson["offerId"].Value<string>());
         }
 
-        var json = JObject.Parse(responseText);
-        var offerId = json["offerId"]?.ToString();
-
-        if (!string.IsNullOrEmpty(offerId))
+        // handling failures
+        // Check for specific error codes
+        var error = responseJson["errors"]?.FirstOrDefault();
+        // Handling cases where offer already exist
+        if (error?["errorId"]?.Value<int>() == 25002 && error["message"].Value<string>().Contains("Offer entity already exists"))
+        {
+            // Offer already exists → extract offerId
+            var existingOfferId = error["parameters"]?.FirstOrDefault(p => p["name"]?.ToString() == "offerId")?["value"]?.ToString();
+            if (!string.IsNullOrEmpty(existingOfferId))
             {
-                Log.Information($"Created an offer object for {sku} successfully with offerId {offerId}");
-                return offerId;
+                Log.Information($"Offer already created. Using existing offerId {existingOfferId}");
+            return (SkuStatuses.OfferCreated, existingOfferId);
             }
-
-        Log.Error($"Offer created but no offerId returned for sku {sku}");
-        throw new InvalidOperationException("Offer created but no offerId returned");
-        
+        }
+        // For every failed offer, log error, mark as FAILED and move on
+        Log.Warning($"Failed: {error?["errorId"]?? "Not existing Error ID"} {responseText}");
+        return (SkuStatuses.Failed,"");        
     }
 
 
@@ -160,32 +145,40 @@ public class EbayOfferService
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
     /// <exception cref="Exception"></exception>
-    public async Task<bool> publishOffer(string offerId, string sku)
+    public async Task<string> publishOffer(string offerId, string sku)
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"https://api.ebay.com/sell/inventory/v1/offer/{offerId}/publish");
         // Set the content type, and content-language header for the content as required in the ebay doc
 
         var response = await _api.SendAsync(request);
+        var responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
         if (response.IsSuccessStatusCode)
         {
             Log.Information($"Publish offer {sku} successfully");
-            return true;
+            return SkuStatuses.Published;
         }
         // Error handling
-        var responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
         var error = responseJson["errors"]!.FirstOrDefault();
 
         if (error?["errorId"].Value<int>() == 25002)
         {
+            if (error["message"].Value<string>().Contains("is too long"))
+            {
+                Log.Information($"A field is too long. simply ignore for now {sku}");
+                return SkuStatuses.Failed;
+            }
+            else
+            {
+                
+            }
             // Business logic. Log and then Ignore for now
-            Log.Warning($"Publish offer {sku} fail. User error. {response.StatusCode}. Mark as processed and move on");
-            Log.Warning($"Publish offer {sku} fail. {response.Content}");
+            Log.Warning($"Publish offer {sku} fail. {response.StatusCode}. {response.Content}");
             throw new HttpRequestException($"Publish offer {sku} failed. Please handle error");
-            return true;
         }
 
         // Other errors, log and throw
         Log.Warning($"Publish offer {sku} fail. {response.Content}");
+        return SkuStatuses.OfferCreated;
         throw new HttpRequestException($"Publish offer {sku} failed. Please handle error");
     }
     /// <summary>

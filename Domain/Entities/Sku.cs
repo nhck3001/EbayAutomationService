@@ -7,6 +7,7 @@ public class Sku
     public string Pid { get; set; } = null!;
 
     public string Title { get; set; } = null!;
+    public string? OfferId { get; set; } = null;
     public string Description { get; set; } = null!;
 
     public string[] ImageUrls { get; set; } = null!;

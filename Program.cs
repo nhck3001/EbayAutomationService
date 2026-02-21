@@ -112,16 +112,132 @@ class Program
                     await CreateInventoryItem(scopeFactory, ebayInventorySerivce);
                 }
                 break;
-        
+
+            case "createoffer":
+                Log.Information("Start process sku from InventoryCreated -> OfferCreated");
+                using (var scope = host.Services.CreateScope())
+                {
+                    var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
+                    var ebayOfferService = scope.ServiceProvider.GetRequiredService<EbayOfferService>();
+                    await CreateOffer(scopeFactory, ebayOfferService,"43506");
+                }
+                break;
+
+            case "publishoffer":
+                Log.Information("Start to publish offer");
+                using (var scope = host.Services.CreateScope())
+                {
+                    var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
+                    var ebayOfferService = scope.ServiceProvider.GetRequiredService<EbayOfferService>();
+                    await PublishOffer(scopeFactory, ebayOfferService,"43506");
+                }
+                break;          
             case "test":
                 using (var scope = host.Services.CreateScope())
                 {
                     var cjApiClient = scope.ServiceProvider.GetRequiredService<CJApiClient>();
-
                     var x = await cjApiClient.GetProductDetailAsync("CJCC26903710001", isProductSku:false);
-                    var xx = 10;
                 }
                 break;
+        }
+    }
+    static async Task PublishOffer(IServiceScopeFactory scopeFactory, EbayOfferService ebayOfferService, string categoryId, int batchSize = 20, int? maxBatches = null)
+    {
+        int batchNumber = 0;
+        bool hasMore = true;
+
+        while (hasMore && (maxBatches == null || batchNumber < maxBatches))
+        {
+
+            batchNumber++;
+            Log.Information($"Processing InvetoryCreated SKU batch #{batchNumber}...");
+            // Get next batch of unprocessed SKUs
+            List<int> offerCreatedSkuIds = new List<int>();
+            using (var scope = scopeFactory.CreateScope())
+            {
+                var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                offerCreatedSkuIds = await appDbContext.Skus
+                .Where(sku => sku.SkuStatus == SkuStatuses.OfferCreated)
+                .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
+                .Take(batchSize)
+                .Select(s => s.Id)
+                .ToListAsync();
+            }
+            if (offerCreatedSkuIds.Count == 0)
+            {
+                hasMore = false;
+                Log.Information("Has processed all OfferCreated Skus/batches");
+                break;
+            }
+            // Try to create OfferItem. 
+            // if successful, INVETORYCREATED -> OfferCreated
+            // If not either PENDING -> REJECTED or PENDING -> FAILED denpending on failure reasons
+            foreach (var skuId in offerCreatedSkuIds)
+            {
+                using (var scope = scopeFactory.CreateScope())
+                {
+                    var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    var sku = await appDbContext.Skus.FindAsync(skuId);
+                    var result = await ebayOfferService.publishOffer(sku.OfferId, sku.SkuCode);
+                    // Mark SKU after publising offer
+                    sku.SkuStatus = result;
+                    await appDbContext.SaveChangesAsync();
+                }
+            }
+        }
+    }
+    static async Task CreateOffer(IServiceScopeFactory scopeFactory, EbayOfferService ebayOfferService, string categoryId, int batchSize = 20, int? maxBatches = null)
+    {
+        int batchNumber = 0;
+        bool hasMore = true;
+
+        while (hasMore && (maxBatches == null || batchNumber < maxBatches))
+        {
+
+            batchNumber++;
+            Log.Information($"Processing InvetoryCreated SKU batch #{batchNumber}...");
+            // Get next batch of unprocessed SKUs
+            List<int> inventoryCreatedSkuIds = new List<int>();
+            using (var scope = scopeFactory.CreateScope())
+            {
+                var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                inventoryCreatedSkuIds = await appDbContext.Skus
+                .Where(sku => sku.SkuStatus == SkuStatuses.InventoryCreatedid)
+                .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
+                .Take(batchSize)
+                .Select(s => s.Id)
+                .ToListAsync();
+            }
+            if (inventoryCreatedSkuIds.Count == 0)
+            {
+                hasMore = false;
+                Log.Information("Has processed all InventoryCreated Skus/batches");
+                break;
+            }
+            // Try to create OfferItem. 
+            // if successful, INVETORYCREATED -> OfferCreated
+            // If not either PENDING -> REJECTED or PENDING -> FAILED denpending on failure reasons
+            foreach (var skuId in inventoryCreatedSkuIds)
+            {
+                using (var scope = scopeFactory.CreateScope())
+                {
+                    var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    var sku = await appDbContext.Skus.FindAsync(skuId);
+                    var result = await ebayOfferService.CreateOffer(sku: sku.SkuCode, categoryId,sku.SellPrice,"DEFAULT_LOCATION","255527709013","255527791013","255527716013");
+                    // Mark SKU after createing offer
+                    if (result.Status == SkuStatuses.Failed)
+                    {
+                        sku.SkuStatus = SkuStatuses.Failed;
+                        await appDbContext.SaveChangesAsync();
+                    }
+                    else if (result.Status == SkuStatuses.OfferCreated)
+                    {
+                        sku.SkuStatus = SkuStatuses.OfferCreated;
+                        sku.OfferId = result.OfferId;
+                        await appDbContext.SaveChangesAsync();
+                    }
+                }
+            }
         }
     }
     static async Task CreateInventoryItem(IServiceScopeFactory scopeFactory, EbayInventoryService ebayInventoryService, int batchSize = 20, int? maxBatches = null)
@@ -135,17 +251,18 @@ class Program
             batchNumber++;
             Log.Information($"Processing PENDING SKU batch #{batchNumber}...");
             // Get next batch of unprocessed SKUs
-            List<Sku> penndingSkus = new List<Sku>();
+            List<int> penndingSkuIds = new List<int>();
             using (var scope = scopeFactory.CreateScope())
             {
                 var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                penndingSkus = await appDbContext.Skus
+                penndingSkuIds = await appDbContext.Skus
                 .Where(sku => sku.SkuStatus == SkuStatuses.Pending)
                 .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
                 .Take(batchSize)
+                .Select(s => s.Id)
                 .ToListAsync();
             }
-            if (penndingSkus.Count == 0)
+            if (penndingSkuIds.Count == 0)
             {
                 hasMore = false;
                 Log.Information("Has processed all PENDING Skus/batches");
@@ -154,11 +271,12 @@ class Program
             // Try to create InventoryItem. 
             // if successful, PENDING -> INVETORYCREATED
             // If not either PENDING -> REJECTED or PENDING -> FAILED denpending on failure reasons
-            foreach (var sku in penndingSkus)
+            foreach (var skuId in penndingSkuIds)
             {
                 using (var scope = scopeFactory.CreateScope())
                 {
                     var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    var sku = await appDbContext.Skus.FindAsync(skuId);
                     var itemSpecifics = JsonConvert.DeserializeObject<Dictionary<string, string>>(sku.ItemSpecifics)!.ToDictionary(kvp => kvp.Key, kvp => new List<string> { kvp.Value });
                     var result = await ebayInventoryService.CreateOrUpdateInventoryItem(
                                         sku: sku.SkuCode,
