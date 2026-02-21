@@ -103,14 +103,13 @@ class Program
                 break;
 
 
-            case "listing":
-                Log.Information("Start listing Service");
+            case "skupending":
+                Log.Information("Start process sku from PENDING -> create ebay InventoryItem");
                 using (var scope = host.Services.CreateScope())
                 {
                     var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
-                    var ebayOfferService = scope.ServiceProvider.GetRequiredService<EbayOfferService>();
                     var ebayInventorySerivce = scope.ServiceProvider.GetRequiredService<EbayInventoryService>();
-                    await UploadCleanSku(scopeFactory, ebayOfferService, ebayInventorySerivce, "43506");
+                    await CreateInventoryItem(scopeFactory, ebayInventorySerivce);
                 }
                 break;
         
@@ -125,17 +124,54 @@ class Program
                 break;
         }
     }
-    static async Task UploadCleanSku(IServiceScopeFactory scopeFactory, EbayOfferService ebayOfferService, EbayInventoryService ebayInventoryService, string ebayCategoryId, int batchSize = 20, int? maxBatches = null)
+    static async Task CreateInventoryItem(IServiceScopeFactory scopeFactory, EbayInventoryService ebayInventoryService, int batchSize = 20, int? maxBatches = null)
     {
-        var categoryName = await Helper.GetEbayCategoryName(ebayCategoryId);
-
         int batchNumber = 0;
         bool hasMore = true;
 
         while (hasMore && (maxBatches == null || batchNumber < maxBatches))
         {
-           
-            
+
+            batchNumber++;
+            Log.Information($"Processing PENDING SKU batch #{batchNumber}...");
+            // Get next batch of unprocessed SKUs
+            List<Sku> penndingSkus = new List<Sku>();
+            using (var scope = scopeFactory.CreateScope())
+            {
+                var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                penndingSkus = await appDbContext.Skus
+                .Where(sku => sku.SkuStatus == SkuStatuses.Pending)
+                .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
+                .Take(batchSize)
+                .ToListAsync();
+            }
+            if (penndingSkus.Count == 0)
+            {
+                hasMore = false;
+                Log.Information("Has processed all PENDING Skus/batches");
+                break;
+            }
+            // Try to create InventoryItem. 
+            // if successful, PENDING -> INVETORYCREATED
+            // If not either PENDING -> REJECTED or PENDING -> FAILED denpending on failure reasons
+            foreach (var sku in penndingSkus)
+            {
+                using (var scope = scopeFactory.CreateScope())
+                {
+                    var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    var itemSpecifics = JsonConvert.DeserializeObject<Dictionary<string, string>>(sku.ItemSpecifics)!.ToDictionary(kvp => kvp.Key, kvp => new List<string> { kvp.Value });
+                    var result = await ebayInventoryService.CreateOrUpdateInventoryItem(
+                                        sku: sku.SkuCode,
+                                        sku.Title,
+                                        sku.Description,
+                                        sku.ImageUrls.ToList(),
+                                        itemSpecifics,
+                                        10);
+                    // Mark SKU after PENDING
+                    sku.SkuStatus = result;
+                    await appDbContext.SaveChangesAsync();
+                }
+            }
         }
     }
 

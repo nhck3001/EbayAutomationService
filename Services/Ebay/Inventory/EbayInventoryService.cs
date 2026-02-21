@@ -17,7 +17,7 @@ public class EbayInventoryService
 
     // This is used to mass create InventoryItem, which is used to create listings later on
     // This represent a product, not the listing itself
-    public async Task<bool> CreateOrUpdateInventoryItem(
+    public async Task<string> CreateOrUpdateInventoryItem(
         string sku,
         string title,
         string description,
@@ -52,12 +52,11 @@ public class EbayInventoryService
         var url = $"https://api.ebay.com/sell/inventory/v1/inventory_item/{sku}";
         var request = new HttpRequestMessage(HttpMethod.Put, url);
         var response = await _api.SendAsync(request, jsonBody, true);
-        var responseText = await response.Content.ReadAsStringAsync();
         // Success
         if (response.IsSuccessStatusCode)
         {
             Log.Information($"InventoryItem created/updated for SKU: {sku}");
-            return true;
+            return SkuStatuses.InventoryCreatedid;
         }
         // handling errors
         var responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
@@ -70,13 +69,25 @@ public class EbayInventoryService
             {
                 // Business logic. Log and then Ignore for now
                 Log.Warning($"Invalid title value. {error["message"]}. Mark as processed and move on");
-                return false;   
+                return SkuStatuses.Failed;
+            }
+        }
+        // Most likely a listing error
+        if (error?["errorId"].Value<int>() == 25002)
+        {
+            // "Features" field is too long
+            if (error["message"].Value<string>().Contains("is too long"))
+            {
+                // Business logic. Log and then Ignore for now
+                Log.Warning($"Invalid title value. {error["message"]}. Mark as processed and move on");
+                return SkuStatuses.Failed;
             }
         }
 
-        // For all other exceptions log and throw
-        Log.Warning($"Create inventory for {sku} fail. Message: {error["message"]}.");
-        throw new HttpRequestException($"InventoryItem create/update failed for SKU {sku}");
+        // For all other exceptions log and continue. Mark as failed
+        Log.Warning($"Create inventory for {sku} fail. {error?["errorId"]}: {error["message"]}.");
+        return SkuStatuses.Failed;
+
     }
 
 

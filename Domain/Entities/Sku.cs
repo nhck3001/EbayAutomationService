@@ -26,7 +26,7 @@ public class Sku
 public static class SkuStatuses
 {
     public const string Pending = "PENDING";
-    public const string InventoryCreatedlid = "InventoryCreated";
+    public const string InventoryCreatedid = "InventoryCreated";
     public const string Rejected = "REJECTED";
 
     public const string OfferCreated = "OfferCreated";
