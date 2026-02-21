@@ -71,7 +71,7 @@ If Stage 2 fails → return REJECT_ASPECT immediately.
     TITLE RULES
     ━━━━━━━━━━━━━━━━━━
     Create ebay-friendly titles from input.Name
-    • Max 80 characters
+    • Max 75 characters
     • No emojis
     • No sales phrases
     • Include material or color if available
@@ -101,7 +101,9 @@ If Stage 2 fails → return REJECT_ASPECT immediately.
     • Only fill aspects listed in {recommendedAspectJson}
     • Do NOT duplicate required aspects.
     • Do NOT return fields that are already in {requiredAspectsJson}.
+    • If ""Features"" exists in {recommendedAspectJson}, keep it below 60 characters
     • If uncertain, omit the field. Do NOT guess.
+
 
     ━━━━━━━━━━━━━━━━━━
     IMAGE RULES
