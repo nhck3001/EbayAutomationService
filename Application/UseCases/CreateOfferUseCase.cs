@@ -28,7 +28,7 @@ public class CreateOfferUseCase
         int batchNumber = 0;
         while (true)
         {
-            _logger.LogInformation($"Processing batch {batchNumber}...");
+            Log.Information($"Processing batch {batchNumber}...");
 
             List<int> inventoryCreatedSkuIds = new List<int>();
             using (var scope = _scopeFactory.CreateScope())

@@ -126,7 +126,6 @@ class Program
                 {
                     var useCase = scope.ServiceProvider.GetRequiredService<CreateOfferUseCase>();
                     await useCase.ExecuteAsync("43506");
-
                 }
                 break;
 
@@ -154,7 +153,7 @@ class Program
         bool hasMore = true;
 
         while (hasMore && (maxBatches == null || batchNumber < maxBatches))
-        {
+        { 
 
             batchNumber++;
             Log.Information($"Processing InvetoryCreated SKU batch #{batchNumber}...");

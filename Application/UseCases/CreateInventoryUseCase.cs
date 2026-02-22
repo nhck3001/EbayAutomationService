@@ -53,6 +53,8 @@ public class CreateInventoryUseCase
         {
             var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var sku = await appDbContext.Skus.FindAsync(skuId);
+            // Log process
+            Log.Information($"Trying to create an offer object for skuId {sku.SkuCode}");
             var itemSpecifics = JsonConvert.DeserializeObject<Dictionary<string, string>>(sku.ItemSpecifics)!.ToDictionary(kvp => kvp.Key, kvp => new List<string> { kvp.Value });
             var result = await _ebayInventoryApiClient.CreateOrUpdateInventoryItem(
                                 sku: sku.SkuCode,
@@ -66,20 +68,23 @@ public class CreateInventoryUseCase
             switch (result.Outcome)
             {
                 case OperationOutcome.Success:
+                    sku.SkuStatus = SkuStatuses.InventoryCreatedid;
+                    Log.Information($"Created/Updated inventoryItem successfully for {sku.SkuCode}");
+                    break;
                 case OperationOutcome.AlreadyExists:
                     sku.SkuStatus = SkuStatuses.InventoryCreatedid;
+                    Log.Information($"Created/Updated inventoryItem successfully for {sku.SkuCode}");    
                     break;
 
                 case OperationOutcome.InvalidData:
                     sku.SkuStatus = SkuStatuses.Failed;
-                    Log.Information("SKU {Sku} invalid: {Message}", sku.SkuCode, result.RawMessage);
+                    Log.Information($"SKU {sku.SkuCode} invalid: {result.RawMessage}");
                     break;
 
                 case OperationOutcome.RetryableFailure:
-                    Log.Information("Temporary failure for {Sku}. Will retry later.", sku.SkuCode);
+                    Log.Information($"Temporary failure for {sku.SkuCode}. Will retry later.");
                     return; // DO NOT change status
             }
-            Log.Information($"Created/Updated inventoryItem successfully for {sku.SkuCode}");
             await appDbContext.SaveChangesAsync();
         }
     }

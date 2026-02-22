@@ -27,7 +27,6 @@ public class EbayInventoryApiClient
         int quantity
     )
     {
-        Log.Information($"Trying to create Inventory Item sku {sku}");
         var body = new
         {
             product = new
@@ -55,8 +54,6 @@ public class EbayInventoryApiClient
         // Success
         if (response.IsSuccessStatusCode)
         {
-
-            Log.Information($"InventoryItem created/updated for SKU: {sku}");
             return OperationResult.Success();
         }
         // handling errors
@@ -68,9 +65,8 @@ public class EbayInventoryApiClient
         {
             if (error["message"].Value<string>().Contains("Invalid value for title"))
             {
-                // Business logic. Log and then Ignore for now
                 Log.Warning($"Invalid title value. {error["message"]}. Mark as processed and move on");
-                return OperationResult.Invalid();
+                return OperationResult.Invalid(message: $"{error["message"]}. Mark as processed and move on)");
             }
         }
         // Most likely a listing error
@@ -81,13 +77,13 @@ public class EbayInventoryApiClient
             {
                 // Business logic. Log and then Ignore for now
                 Log.Warning($"Invalid title value. {error["message"]}. Mark as processed and move on");
-                return OperationResult.Invalid();
+                return OperationResult.Invalid(message: $"{error["message"]}. Mark as processed and move on");
             }
         }
 
         // For all other exceptions log and continue. Mark as failed
         Log.Warning($"Create inventory for {sku} fail. {error?["errorId"]}: {error["message"]}.");
-        return OperationResult.Invalid();
+        return OperationResult.Invalid(message: $"{error["message"]}");
     }
 
 
