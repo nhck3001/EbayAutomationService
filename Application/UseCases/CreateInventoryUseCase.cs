@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Serilog;
 
 public class CreateInventoryUseCase
 {
@@ -36,7 +37,7 @@ public class CreateInventoryUseCase
 
             if (penndingSkuIds.Count == 0)
             {
-                _logger.LogInformation("No more pending SKUs.");
+                Log.Information("No more pending SKUs.");
                 return;
             }
 
@@ -71,14 +72,14 @@ public class CreateInventoryUseCase
 
                 case OperationOutcome.InvalidData:
                     sku.SkuStatus = SkuStatuses.Failed;
-                    _logger.LogWarning("SKU {Sku} invalid: {Message}", sku.SkuCode, result.RawMessage);
+                    Log.Information("SKU {Sku} invalid: {Message}", sku.SkuCode, result.RawMessage);
                     break;
 
                 case OperationOutcome.RetryableFailure:
-                    _logger.LogInformation("Temporary failure for {Sku}. Will retry later.", sku.SkuCode);
+                    Log.Information("Temporary failure for {Sku}. Will retry later.", sku.SkuCode);
                     return; // DO NOT change status
             }
-            _logger.LogInformation($"Created/Updated inventoryItem successfully for {sku.SkuCode}");
+            Log.Information($"Created/Updated inventoryItem successfully for {sku.SkuCode}");
             await appDbContext.SaveChangesAsync();
         }
     }

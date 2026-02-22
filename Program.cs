@@ -66,10 +66,12 @@ class Program
                 services.AddScoped<DeepSeekClient>(sp => new DeepSeekClient(Environment.GetEnvironmentVariable("DEEPSEEK_API_KEY")!));
 
                 services.AddScoped<EbayInventoryApiClient>();
-                services.AddScoped<EbayOfferService>();
+                services.AddScoped<EbayOfferApiClient>();
                 services.AddScoped<EbayPolicyService>();
                 services.AddScoped<DatabaseTestService>();
                 services.AddScoped<CreateInventoryUseCase>();
+                services.AddScoped<CreateOfferUseCase>();
+
             })
             .Build();
 
@@ -122,9 +124,9 @@ class Program
                 Log.Information("Start process sku from InventoryCreated -> OfferCreated");
                 using (var scope = host.Services.CreateScope())
                 {
-                    var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
-                    var ebayOfferService = scope.ServiceProvider.GetRequiredService<EbayOfferService>();
-                    await CreateOffer(scopeFactory, ebayOfferService,"43506");
+                    var useCase = scope.ServiceProvider.GetRequiredService<CreateOfferUseCase>();
+                    await useCase.ExecuteAsync("43506");
+
                 }
                 break;
 
@@ -133,7 +135,7 @@ class Program
                 using (var scope = host.Services.CreateScope())
                 {
                     var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
-                    var ebayOfferService = scope.ServiceProvider.GetRequiredService<EbayOfferService>();
+                    var ebayOfferService = scope.ServiceProvider.GetRequiredService<EbayOfferApiClient>();
                     await PublishOffer(scopeFactory, ebayOfferService,"43506");
                 }
                 break;          
@@ -146,7 +148,7 @@ class Program
                 break;
         }
     }
-    static async Task PublishOffer(IServiceScopeFactory scopeFactory, EbayOfferService ebayOfferService, string categoryId, int batchSize = 20, int? maxBatches = null)
+    static async Task PublishOffer(IServiceScopeFactory scopeFactory, EbayOfferApiClient ebayOfferService, string categoryId, int batchSize = 20, int? maxBatches = null)
     {
         int batchNumber = 0;
         bool hasMore = true;
@@ -191,61 +193,7 @@ class Program
             }
         }
     }
-    static async Task CreateOffer(IServiceScopeFactory scopeFactory, EbayOfferService ebayOfferService, string categoryId, int batchSize = 20, int? maxBatches = null)
-    {
-        int batchNumber = 0;
-        bool hasMore = true;
-
-        while (hasMore && (maxBatches == null || batchNumber < maxBatches))
-        {
-
-            batchNumber++;
-            Log.Information($"Processing InvetoryCreated SKU batch #{batchNumber}...");
-            // Get next batch of unprocessed SKUs
-            List<int> inventoryCreatedSkuIds = new List<int>();
-            using (var scope = scopeFactory.CreateScope())
-            {
-                var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                inventoryCreatedSkuIds = await appDbContext.Skus
-                .Where(sku => sku.SkuStatus == SkuStatuses.InventoryCreatedid)
-                .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
-                .Take(batchSize)
-                .Select(s => s.Id)
-                .ToListAsync();
-            }
-            if (inventoryCreatedSkuIds.Count == 0)
-            {
-                hasMore = false;
-                Log.Information("Has processed all InventoryCreated Skus/batches");
-                break;
-            }
-            // Try to create OfferItem. 
-            // if successful, INVETORYCREATED -> OfferCreated
-            // If not either PENDING -> REJECTED or PENDING -> FAILED denpending on failure reasons
-            foreach (var skuId in inventoryCreatedSkuIds)
-            {
-                using (var scope = scopeFactory.CreateScope())
-                {
-                    var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    var sku = await appDbContext.Skus.FindAsync(skuId);
-                    var result = await ebayOfferService.CreateOffer(sku: sku.SkuCode, categoryId,sku.SellPrice,"DEFAULT_LOCATION","255527709013","255527791013","255527716013");
-                    // Mark SKU after createing offer
-                    if (result.Status == SkuStatuses.Failed)
-                    {
-                        sku.SkuStatus = SkuStatuses.Failed;
-                        await appDbContext.SaveChangesAsync();
-                    }
-                    else if (result.Status == SkuStatuses.OfferCreated)
-                    {
-                        sku.SkuStatus = SkuStatuses.OfferCreated;
-                        sku.OfferId = result.OfferId;
-                        await appDbContext.SaveChangesAsync();
-                    }
-                }
-            }
-        }
-    }
-
+ 
 
         // These extract Variant Sku from PIDs.
         static async Task CleanSku(IServiceScopeFactory scopeFactory, CJApiClient cjClient, DeepSeekClient deepSeekClient, string ebayCategoryId, int batchSize = 20, int? maxBatches = null)

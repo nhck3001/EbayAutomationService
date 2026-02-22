@@ -4,11 +4,11 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Serilog;
 
-public class EbayOfferService
+public class EbayOfferApiClient
 {
     private readonly EbayApiClient _api;
 
-    public EbayOfferService(EbayApiClient api)
+    public EbayOfferApiClient(EbayApiClient api)
     {
         _api = api;
     }
@@ -19,7 +19,7 @@ public class EbayOfferService
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
     /// <exception cref="Exception"></exception>
-    public async Task<(string Status, string? OfferId)> CreateOffer(
+    public async Task<OperationResult> CreateOffer(
         string sku,
         string categoryId,
         decimal price,
@@ -29,7 +29,6 @@ public class EbayOfferService
         string returnPolicyId
     )
     {
-        Log.Information($"Trying to create an offer object for sku {sku}");
         
         var body = new
         {
@@ -63,8 +62,7 @@ public class EbayOfferService
 
         if (response.IsSuccessStatusCode)
         {
-            Log.Information($"Create offer for {sku} successfully");
-            return (SkuStatuses.OfferCreated, responseJson["offerId"].Value<string>());
+            return OperationResult.Success(value: responseJson["offerId"].Value<string>());
         }
 
         // handling failures
@@ -77,13 +75,20 @@ public class EbayOfferService
             var existingOfferId = error["parameters"]?.FirstOrDefault(p => p["name"]?.ToString() == "offerId")?["value"]?.ToString();
             if (!string.IsNullOrEmpty(existingOfferId))
             {
-                Log.Information($"Offer already created. Using existing offerId {existingOfferId}");
-            return (SkuStatuses.OfferCreated, existingOfferId);
+                return OperationResult.Exists(value: existingOfferId);
             }
+        }
+        // Create an offer of a sku that doesn't exist
+        if (error?["errorId"]?.Value<int>() == 25702 && error["message"].Value<string>().Contains("could not be found"))
+        {
+            // Offer already exists → extract offerId
+
+                return OperationResult.Invalid("Created an offer based on non-existing sku. Mark as failed");
+            
         }
         // For every failed offer, log error, mark as FAILED and move on
         Log.Warning($"Failed: {error?["errorId"]?? "Not existing Error ID"} {responseText}");
-        return (SkuStatuses.Failed,"");        
+        return OperationResult.Invalid();       
     }
 
 
