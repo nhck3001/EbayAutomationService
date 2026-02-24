@@ -72,6 +72,7 @@ class Program
                 services.AddScoped<DatabaseTestService>();
                 services.AddScoped<CreateInventoryUseCase>();
                 services.AddScoped<CreateOfferUseCase>();
+                services.AddScoped<CrawlerUseCase>();
 
             })
             .Build();
@@ -95,7 +96,8 @@ class Program
                 {
                     var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
                     var cjApiClient = scope.ServiceProvider.GetRequiredService<CJApiClient>();
-                    await RunCatalogCrawler(scopeFactory,cjApiClient, 1, "shoe tower");
+                    var crawlUseCase = scope.ServiceProvider.GetRequiredService<CrawlerUseCase>();
+                    await crawlUseCase.CrawlProductsAsync("22656");
                 }
                 break;
 
@@ -407,10 +409,6 @@ class Program
             throw;
         }
 
-    }
-    static async Task RunCatalogCrawler(IServiceScopeFactory scopeFactory,CJApiClient cjClient, int ebayCategoryId, string productNameEn)
-    {
-        var pids = await cjClient.GetPids(scopeFactory,ebayCategoryId, productNameEn, Helper.IsLikelyShoeOrganizer);
     }
 }
 
