@@ -143,14 +143,8 @@ class Program
                 using (var scope = host.Services.CreateScope())
                 {
 
-                    var rootNodeJson = treeJson["rootCategoryNode"];
-                    var rootNode = EbayCategoryNode.ParseNode(rootNodeJson);
-                    var siblings = EbayCategoryNode.GetSiblingLeafCategories(rootNode, "43506");
-
-                    foreach (var cat in siblings)
-                    {
-                        Console.WriteLine($"{cat.CategoryName} ({cat.CategoryId})");
-                    }
+                    var ebayClient = scope.ServiceProvider.GetRequiredService<EbayCategoryService>();
+                    var x = await ebayClient.GetItemAspectForCategory("43506");
                 }
                 break;
         }
