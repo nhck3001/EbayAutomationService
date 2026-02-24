@@ -42,6 +42,7 @@ public static string BuildPrompt(string input, string requiredAspectsJson, strin
     2. When there are CONFLICTS between values:
     - ALWAYS TRUST ProductDescription FIRST (this is the most accurate source)
     - THEN trust ProductSpecification 
+    - THEN trust what you can find in {input} 
     - IGNORE conflicting values from other fields if they contradict these sources
     
     3. For DIMENSIONS specifically:
@@ -52,6 +53,7 @@ public static string BuildPrompt(string input, string requiredAspectsJson, strin
         * Look for ""Packing Dimension"" or ""Package Dimension"" information
         * Packing dimensions can be used as a FALLBACK for product dimensions
         * Add a note in the description that these are packed dimensions
+        * If ""Packing Dimension"" or ""Package Dimension"" don't exists, look for demensions from {input}
     - Convert all dimensions to consistent units (inches), include unit.
 
     4. For each required aspect:
