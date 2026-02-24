@@ -142,7 +142,6 @@ class Program
             case "test":
                 using (var scope = host.Services.CreateScope())
                 {
-
                     var ebayClient = scope.ServiceProvider.GetRequiredService<EbayCategoryService>();
                     var x = await ebayClient.GetItemAspectForCategory("43506");
                 }

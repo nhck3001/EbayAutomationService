@@ -1,15 +1,7 @@
 using Newtonsoft.Json.Linq;
 
 namespace EbayAutomationService.Helper;
-//"shoe organizer"
-//"shoe storage"
-//"shoe rack"
-//"shoe cabinet"
-//"shoe shelf"
-//"shoe stand"
-//"shoe holder"
-//"shoe tower"
-//"shoe bench"
+
 public static class Helper
 {
     public static string GetAspectJson()
@@ -17,6 +9,35 @@ public static class Helper
         return "/Users/nhck3001/Documents/GitHub/EbayAutomationService/requiredAspects.json";
     }
     // Check if a product is likely a shoe organizer
+    public static Func<string, bool> GetFilter(string ebayCategoryId)
+    {
+        switch (ebayCategoryId)
+        {
+            // Shoe organizer
+            case "43506":
+                return IsLikelyShoeOrganizer;
+            case "22656":
+                return IsLikelyCoatAndHatRack;
+        }
+        // SHould never reach here
+        return null;
+    }
+
+    public static List<string> GetKeyWord(string ebayCategoryId)
+    {
+        switch (ebayCategoryId)
+        {
+            // Shoe organizer
+            case "43506":
+                return ["shoe rack","shoe organizer", "shoe storage","shoe cabinet","shoe shelf","shoe stand","shoe tower","shoe bench",];
+            // Coat & Hat Rack
+            case "22656":
+                return ["coat rack", "hat rack", "coat and hat rack", "hall tree","valet stand",];
+        }
+        // SHould never reach here
+        return null;
+    }
+
     public static bool IsLikelyShoeOrganizer(string? name)
     {
         if (string.IsNullOrWhiteSpace(name))
@@ -43,7 +64,33 @@ public static class Helper
 
         return storageKeywords.Any(k => name.Contains(k));
     }
+    public static bool IsLikelyCoatAndHatRack(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;   
+        }
+        name = name.ToLowerInvariant();
 
+        // Must contain "coat" or "hat" l
+        if (!name.Contains("coat") && !name.Contains("hat"))
+        {
+            return false;   
+        }
+        string[] rackKeywords =
+        {
+            "rack",
+            "stand",
+            "hook",
+            "tree",
+            "valet",
+            "hanger",
+            "organizer",
+            "storage"
+        };
+
+        return rackKeywords.Any(k => name.Contains(k));
+    }
     // Look at requiredAspects.json and return both required aspect + recommended aspects and its value type
     // REQUIRED ASPECTS:
     // - Brand (Type: STRING)
