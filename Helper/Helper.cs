@@ -107,3 +107,94 @@ public static class Helper
         return categoryName;
     }
 };
+
+
+   public class EbayCategoryNode
+{
+    public string CategoryId { get; set; }
+    public string CategoryName { get; set; }
+    public List<EbayCategoryNode> Children { get; set; } = new();
+    public bool IsLeaf => Children == null || Children.Count == 0;
+    public static EbayCategoryNode ParseNode(JToken node)
+    {
+        var category = node["category"];
+
+        var result = new EbayCategoryNode
+        {
+            CategoryId = category["categoryId"]?.ToString(),
+            CategoryName = category["categoryName"]?.ToString()
+        };
+
+        var children = node["childCategoryTreeNodes"];
+
+        if (children != null)
+        {
+            foreach (var child in children)
+            {
+                result.Children.Add(ParseNode(child));
+            }
+        }
+
+        return result;
+    }
+
+    public static EbayCategoryNode? FindCategory(EbayCategoryNode node, string name)
+    {
+        if (node.CategoryName.Equals(name, StringComparison.OrdinalIgnoreCase))
+            return node;
+
+        foreach (var child in node.Children)
+        {
+            var found = FindCategory(child, name);
+            if (found != null)
+                return found;
+        }
+
+        return null;
+    }
+
+    public static void PrintAllChildren(EbayCategoryNode node, int depth = 0)
+    {
+        string indent = new string(' ', depth * 2);
+
+        Console.WriteLine($"{indent}{node.CategoryName} ({node.CategoryId})");
+
+        foreach (var child in node.Children)
+        {
+            PrintAllChildren(child, depth + 1);
+        }
+    }
+
+    public static (EbayCategoryNode? node, EbayCategoryNode? parent)
+    FindById(EbayCategoryNode current, string id, EbayCategoryNode? parent = null)
+    {
+        if (current.CategoryId == id)
+            return (current, parent);
+
+        foreach (var child in current.Children)
+        {
+            var result = FindById(child, id, current);
+            if (result.node != null)
+                return result;
+        }
+
+        return (null, null);
+    }
+    public static List<EbayCategoryNode> GetSiblingLeafCategories(JToken treeJson, string targetCategoryId)
+    {
+        var rootNodeJson = treeJson["rootCategoryNode"];
+        var rootNode = EbayCategoryNode.ParseNode(rootNodeJson);
+        var (node, parent) = FindById(rootNode, targetCategoryId);
+        if (node == null || parent == null)
+        {
+            return new List<EbayCategoryNode>();
+   
+        }
+        var siblings = parent.Children.Where(c => c.IsLeaf).ToList();
+        foreach (var cat in siblings)
+        {
+            Console.WriteLine($"{cat.CategoryName} ({cat.CategoryId})");
+        }
+        return siblings;
+    }
+        }
