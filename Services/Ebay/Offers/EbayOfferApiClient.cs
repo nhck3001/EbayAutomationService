@@ -167,7 +167,9 @@ public class EbayOfferApiClient
 
         if (error?["errorId"].Value<int>() == 25002)
         {
-            if (error["message"].Value<string>().Contains("is too long"))
+            if (error["message"].Value<string>().Contains("is too long") || // Fields are too long
+                error["message"].Value<string>().Contains("Picture Policy") // Picture not meeting requirements
+                )
             {
                 Log.Information($"A field is too long. simply ignore for now {sku}");
                 return SkuStatuses.Failed;
@@ -177,14 +179,13 @@ public class EbayOfferApiClient
                 
             }
             // Business logic. Log and then Ignore for now
-            Log.Warning($"Publish offer {sku} fail. {response.StatusCode}. {response.Content}");
-            throw new HttpRequestException($"Publish offer {sku} failed. Please handle error");
+            Log.Warning($"Publish offer {sku} fail. {error?["errorId"]}. {error["message"].Value<string>()}");
+            return SkuStatuses.Failed;
         }
 
         // Other errors, log and throw
-        Log.Warning($"Publish offer {sku} fail. {response.Content}");
-        return SkuStatuses.OfferCreated;
-        throw new HttpRequestException($"Publish offer {sku} failed. Please handle error");
+        Log.Warning($"Publish offer {sku} fail. {error?["errorId"]}. {error["message"].Value<string>()}");
+        return SkuStatuses.Failed;
     }
     /// <summary>
     /// Get all offers for a specified SKU. 

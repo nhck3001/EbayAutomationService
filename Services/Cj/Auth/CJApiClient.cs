@@ -14,7 +14,7 @@ public class CJApiClient
     private readonly CjTokenManager _tokenManager;
     // Semaphore lock to ensure 1 thead can call API at a time
     private static readonly SemaphoreSlim _rateLimiter = new(1, 1);
-    private static DateTime _lastRequestTime = DateTime.MinValue;
+private static DateTime _lastRequestTime = DateTime.UtcNow.AddSeconds(-1);
     private const string BaseUrl = "https://developers.cjdropshipping.com/api2.0/v1/";
     public AppDbContext _appDbContext;
 
@@ -26,9 +26,9 @@ public class CJApiClient
         try
         {
             var elapsed = DateTime.UtcNow - _lastRequestTime;
-            if (elapsed.TotalMilliseconds < 2000)
+            if (elapsed.TotalMilliseconds < 1100)
             {
-                await Task.Delay(2000 - (int)elapsed.TotalMilliseconds);
+                await Task.Delay(1100 - (int)elapsed.TotalMilliseconds);
             }
 
             await action(); //  the ACTUAL CJ call happens here
@@ -81,12 +81,12 @@ public class CJApiClient
                 if (doc.RootElement.TryGetProperty("code", out var codeEl))
                 {
                     var code = codeEl.GetInt32();
-                    if (code != 200)
-                        throw new HttpRequestException($"CJ API error {code}: {body}");
-                    else if (code == 1600200)
+                    if (code == 1600200)
                     {
                         throw new InvalidOperationException($"CJ API rate limit exceeded {body}");
                     }
+                    else if (code != 200)
+                        throw new HttpRequestException($"CJ API error {code}: {body}");
                 }
 
                 try
@@ -115,33 +115,8 @@ public class CJApiClient
             {
                 if (ex.Message.Contains("rate limit"))
                 {
-                    Log.Information("Rate limit hit. Waiting 2 seconds and retrying once");
-                    await Task.Delay(2000);
-                    await ExecuteWithCjRateLimitAsync(async () =>
-                            {
-                                await AddAuthAsync();
-                                var response = await _httpClient.GetAsync(endpoint);
-                                var body = await response.Content.ReadAsStringAsync();
-                                
-                                if (!response.IsSuccessStatusCode)
-                                {
-                                    throw new HttpRequestException($"CJ HTTP error on retry: {body}");
-                                }
-                                
-                                using var doc = JsonDocument.Parse(body);
-                                if (doc.RootElement.TryGetProperty("code", out var codeEl))
-                                {
-                                    var code = codeEl.GetInt32();
-                                    if (code != 200)
-                                    {
-                                        throw new HttpRequestException($"CJ API error {code} on retry: {body}");
-                                    }
-                                }
-
-                                result = JsonConvert.DeserializeObject<T>(body)!;
-                            });
-                            
-                            Log.Information("Retry successful");
+                    Log.Information("Rate limit hit.");
+                    throw;
                 }
             }
 
@@ -264,7 +239,6 @@ public class CJApiClient
                 await Task.Delay(5000);
             }
             // save to the database
-            await Task.Delay(600);
         }
 
         return skus;
