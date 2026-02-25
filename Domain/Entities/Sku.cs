@@ -4,8 +4,6 @@ public class Sku
     public int Id { get; set; }
 
     public string SkuCode { get; set; } = null!;
-    public string Pid { get; set; } = null!;
-
     public string Title { get; set; } = null!;
     public string? OfferId { get; set; } = null;
     public string Description { get; set; } = null!;

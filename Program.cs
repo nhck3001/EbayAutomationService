@@ -374,7 +374,6 @@ class Program
         var skuEntity = new Sku
         {
             SkuCode = variant.VariantSku!,
-            Pid = productInfo.Data.Pid!,
             Title = aiResult.Title,
             Description = aiResult.Description,
             ImageUrls = aiResult.Images?.ToArray() ?? Array.Empty<string>(),

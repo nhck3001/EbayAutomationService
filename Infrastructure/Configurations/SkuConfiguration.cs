@@ -11,8 +11,6 @@ public class SkuConfiguration : IEntityTypeConfiguration<Sku>
         builder.HasKey(x => x.Id);
         // SKU Code - maps to 'sku' column, cannot be NULL
         builder.Property(x => x.SkuCode).HasColumnName("sku").IsRequired();
-        // PID (Product ID) - maps to 'pid' column, cannot be NULL
-        builder.Property(x => x.Pid).HasColumnName("pid").IsRequired();
         // Product Title - maps to 'title' column, cannot be NULL
         builder.Property(x => x.Title).HasColumnName("title").IsRequired();
         // Product offerId - maps to 'offerId' column, can be null
