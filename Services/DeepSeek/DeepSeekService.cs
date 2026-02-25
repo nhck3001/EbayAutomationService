@@ -56,11 +56,11 @@ public static string BuildPrompt(string input, string requiredAspectsJson, strin
         * If ""Packing Dimension"" or ""Package Dimension"" don't exists, look for demensions from {input}
     - Convert all dimensions to consistent units (inches), include unit.
 
-    4. For each required aspect:
+    4. For each required aspect beside Type:
     • Brand: If no brand information exists, set Brand = ""Unbranded""
-    • Type: Infer from product name if needed
     • All other aspects: Use values from ProductDescription or ProductSpecification FIRST.
-    • If a required aspect cannot be found in ANY source → REJECT_ASPECT
+    • If a required aspect beside Type cannot be found in ANY source → REJECT_ASPECT
+    • Type: Infer from ""Name"" in {input}
 
     5. COMPARISON RULE:
     - Do NOT reject because input fields don't match description

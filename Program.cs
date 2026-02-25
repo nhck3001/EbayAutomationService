@@ -109,7 +109,7 @@ class Program
                     var cjApiClient = scope.ServiceProvider.GetRequiredService<CJApiClient>();
                     var deepSeekClient = scope.ServiceProvider.GetRequiredService<DeepSeekClient>();
                     var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    await CleanSku(scopeFactory,cjApiClient, deepSeekClient, "43506");
+                    await CleanSku(scopeFactory,cjApiClient, deepSeekClient, "22656");
                 }
                 break;
 
@@ -138,7 +138,7 @@ class Program
                 {
                     var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
                     var ebayOfferService = scope.ServiceProvider.GetRequiredService<EbayOfferApiClient>();
-                    await PublishOffer(scopeFactory, ebayOfferService,"43506");
+                    await PublishOffer(scopeFactory, ebayOfferService);
                 }
                 break;          
             case "test":
@@ -150,7 +150,7 @@ class Program
                 break;
         }
     }
-    static async Task PublishOffer(IServiceScopeFactory scopeFactory, EbayOfferApiClient ebayOfferService, string categoryId, int batchSize = 20, int? maxBatches = null)
+    static async Task PublishOffer(IServiceScopeFactory scopeFactory, EbayOfferApiClient ebayOfferService, int batchSize = 20, int? maxBatches = null)
     {
         int batchNumber = 0;
         bool hasMore = true;
@@ -225,7 +225,6 @@ class Program
                     .Take(batchSize)
                     .Select(s => s.Id)
                     .ToListAsync();
-
                 }
 
 
@@ -279,7 +278,7 @@ class Program
             foreach (var variant in productInfo.Data.Variants)
             {
                 await ProcessVariant(scopeFactory, variant, dirtySkuId, productInfo, cjClient, deepSeekClient, requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName);       
-                break; // Only process 1 variant per product processed      
+                break; // Only process 1 variant per product       
             }
                 
         
