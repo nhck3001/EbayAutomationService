@@ -20,7 +20,6 @@ public class CrawlerUseCase
     {
         var keyWords = GetKeyWord(ebayCategoryId);
         var filterFunction = GetFilter(ebayCategoryId);
-        var categoryId = GetCategoryId(ebayCategoryId);
         // Querry keyword by keyword
         foreach (var keyWord in keyWords)
         {
@@ -42,7 +41,7 @@ public class CrawlerUseCase
                     {
                         if (filterFunction(product.NameEn))
                         {
-                            await SaveDirtySkuAsync(product.Sku, categoryId);
+                            await SaveDirtySkuAsync(product.Sku, int.Parse(ebayCategoryId));
                         }
                     }
                 }
@@ -139,18 +138,6 @@ public class CrawlerUseCase
         return rackKeywords.Any(k => name.Contains(k));
     }
 
-    public static int GetCategoryId(string ebayCategoryId)
-    {
-        if (ebayCategoryId == "43506")
-        {
-            return 1;
-        }
-        else if (ebayCategoryId == "22656")
-        {
-            return 2;
-        }
-        return 0;
-    }
     private async Task SaveDirtySkuAsync(string sku, int categoryId)
     {
 
@@ -159,7 +146,7 @@ public class CrawlerUseCase
         var dirtySku = new DirtySku
         {
             Sku = sku,
-            CategoryId =categoryId, // CategoryId is Fk to Category table 
+            EbayCategoryId =categoryId, // CategoryId is Fk to Category table 
             Processed = false
         };
 
@@ -183,6 +170,8 @@ public class CrawlerUseCase
             {
                 Log.Information("Duplicate key. Move on");
             }
+            Log.Information($"{ex.Message}");
+
         }
 
     }

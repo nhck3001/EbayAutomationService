@@ -12,7 +12,7 @@ public class DirtySkuConfiguration : IEntityTypeConfiguration<DirtySku>
         // Map .Pid field to 'pid' column 
         builder.Property(x => x.Sku).HasColumnName("sku").IsRequired();
         // Map .CategoryId field to 'category_id' column 
-        builder.Property(x => x.CategoryId).HasColumnName("ebay_category_id").IsRequired();
+        builder.Property(x => x.EbayCategoryId).HasColumnName("ebay_category_id").IsRequired();
         // Map .Processed field to 'processed' column 
         builder.Property(x => x.Processed).HasColumnName("processed").HasDefaultValue(false);
         // Create an index on .Pid // '[id]

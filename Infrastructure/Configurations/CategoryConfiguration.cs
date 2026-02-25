@@ -15,13 +15,18 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.Property(categoryObject => categoryObject.EbayCategoryId).HasColumnName("ebay_category_id").IsRequired();
         // Map Keyword field to column keyword. keyword can't be NULL
         builder.Property(categoryObject => categoryObject.Keyword).HasColumnName("keyword").IsRequired();
-        // Create unique index of ebay_category_id
-        builder.HasIndex(categoryObject=> categoryObject.EbayCategoryId).IsUnique();
+        // Make EbayCategoryId an alternate key to be referenced by DirtySku table
+        builder.HasAlternateKey(x => x.EbayCategoryId);
         // Relationship between Category and DirtySkus is 1 to many
         // Each product SKU belong to 1 Category
         // Foreign key is EbayCategoryId in DirtySkus table
         // If a category is deleted, all of related Pids are also deleted
-        builder.HasMany(x => x.DirtySkus).WithOne(x => x.Category).HasForeignKey(x => x.CategoryId).OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasMany(x => x.DirtySkus)
+        .WithOne(x => x.Category)
+        .HasForeignKey(x => x.EbayCategoryId)
+        .HasPrincipalKey(x => x.EbayCategoryId)
+        .OnDelete(DeleteBehavior.Cascade);
         
     }
 }

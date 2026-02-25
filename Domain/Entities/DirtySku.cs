@@ -5,7 +5,7 @@ public class DirtySku
 
     public string Sku { get; set; } = null!;
 
-    public int CategoryId { get; set; }
+    public int EbayCategoryId { get; set; }
 
     public bool Processed { get; set; }
 

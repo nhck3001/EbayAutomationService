@@ -43,7 +43,6 @@ class Program
                 });
                 // Add a custom service DatabaseTestService.
                 // Whenever a DatabaseTestService object is needed, automatically create it
-                services.AddScoped<DatabaseTestService>();
                 // Load environment variables
                 Env.Load("/Users/nhck3001/Documents/GitHub/EbayAutomationService/file.env");
                 // Register all  services with DI container
@@ -69,7 +68,6 @@ class Program
                 services.AddScoped<EbayInventoryApiClient>();
                 services.AddScoped<EbayOfferApiClient>();
                 services.AddScoped<EbayPolicyService>();
-                services.AddScoped<DatabaseTestService>();
                 services.AddScoped<CreateInventoryUseCase>();
                 services.AddScoped<CreateOfferUseCase>();
                 services.AddScoped<CrawlerUseCase>();
