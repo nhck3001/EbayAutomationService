@@ -255,12 +255,14 @@ class Program
     {
 
             CjProductDetailResponse productInfo = new CjProductDetailResponse();
+            var ebayCategoryId = 0;
             using (var scope = scopeFactory.CreateScope())
             {
                 var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 var dirtySku = await context.DirtySkus.FindAsync(dirtySkuId);
                 Log.Information($"Fetching product info for sku {dirtySku.Sku}");
                 productInfo = await cjClient.GetProductDetailAsync(dirtySku.Sku, isProductSku: true);
+                ebayCategoryId = dirtySku.EbayCategoryId;
 
                 if (productInfo == null)
                 {
@@ -275,7 +277,7 @@ class Program
             }                
             foreach (var variant in productInfo.Data.Variants)
             {
-                await ProcessVariant(scopeFactory, variant, dirtySkuId, productInfo, cjClient, deepSeekClient, requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName);       
+                await ProcessVariant(scopeFactory, variant, ebayCategoryId, productInfo, cjClient, deepSeekClient, requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName);       
                 break; // Only process 1 variant per product       
             }
                 
@@ -284,7 +286,7 @@ class Program
         
     
 
-    private static async Task ProcessVariant(IServiceScopeFactory scopeFactory,CjVariant variant, int dirtySkuId,
+    private static async Task ProcessVariant(IServiceScopeFactory scopeFactory,CjVariant variant, int ebayCategoryId,
         CjProductDetailResponse productInfo, CJApiClient cjClient, DeepSeekClient deepSeekClient,
          string requiredAspectsForPrompt, string recommendedAspectsForPrompt,
         string categoryName)
@@ -335,7 +337,7 @@ class Program
             }
 
             // Save to database
-            await SaveValidatedSku(scopeFactory, variant, dirtySkuId, productInfo, aiResult);
+            await SaveValidatedSku(scopeFactory, variant, aiResult,ebayCategoryId);
         }
         // Catch database exception first
         catch (DbUpdateException ex)
@@ -366,7 +368,7 @@ class Program
         }
     }
 
-    private static async Task SaveValidatedSku(IServiceScopeFactory scopeFactory,CjVariant variant, int dirtySkuId, CjProductDetailResponse productInfo, AiEnrichmentResult aiResult)
+    private static async Task SaveValidatedSku(IServiceScopeFactory scopeFactory,CjVariant variant, AiEnrichmentResult aiResult,int ebayCategoryId)
     {
         var itemSpecifics = aiResult.RequiredFields.Concat(aiResult.RecommendedFields).ToDictionary(x => x.Key, x => x.Value);
         var skuEntity = new Sku
@@ -374,6 +376,7 @@ class Program
             SkuCode = variant.VariantSku!,
             Title = aiResult.Title,
             Description = aiResult.Description,
+            Ebay_Category_Id = ebayCategoryId,
             ImageUrls = aiResult.Images?.ToArray() ?? Array.Empty<string>(),
             ItemSpecifics = JsonConvert.SerializeObject(itemSpecifics),
             SellPrice = aiResult.Sellprice,

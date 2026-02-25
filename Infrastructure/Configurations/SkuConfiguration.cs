@@ -15,6 +15,8 @@ public class SkuConfiguration : IEntityTypeConfiguration<Sku>
         builder.Property(x => x.Title).HasColumnName("title").IsRequired();
         // Product offerId - maps to 'offerId' column, can be null
         builder.Property(x => x.OfferId).HasColumnName("offer_id");
+        builder.Property(x => x.Ebay_Category_Id).HasColumnName("ebay_category_id");
+
         // Product Description - maps to 'description' column, cannot be NULL
         builder.Property(x => x.Description).HasColumnName("description").IsRequired();
         // Image URLs - stored as PostgreSQL text array (text[]), cannot be NULL

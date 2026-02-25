@@ -5,6 +5,8 @@ public class Sku
 
     public string SkuCode { get; set; } = null!;
     public string Title { get; set; } = null!;
+
+    public int Ebay_Category_Id { get; set; }
     public string? OfferId { get; set; } = null;
     public string Description { get; set; } = null!;
 
