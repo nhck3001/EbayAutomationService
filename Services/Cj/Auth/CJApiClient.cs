@@ -14,7 +14,7 @@ public class CJApiClient
     private readonly CjTokenManager _tokenManager;
     // Semaphore lock to ensure 1 thead can call API at a time
     private static readonly SemaphoreSlim _rateLimiter = new(1, 1);
-    private static DateTime _lastRequestTime = DateTime.MinValue;
+private static DateTime _lastRequestTime = DateTime.UtcNow.AddSeconds(-1);
     private const string BaseUrl = "https://developers.cjdropshipping.com/api2.0/v1/";
     public AppDbContext _appDbContext;
 
@@ -26,9 +26,9 @@ public class CJApiClient
         try
         {
             var elapsed = DateTime.UtcNow - _lastRequestTime;
-            if (elapsed.TotalMilliseconds < 1500)
+            if (elapsed.TotalMilliseconds < 1100)
             {
-                await Task.Delay(1500 - (int)elapsed.TotalMilliseconds);
+                await Task.Delay(1100 - (int)elapsed.TotalMilliseconds);
             }
 
             await action(); //  the ACTUAL CJ call happens here
@@ -81,12 +81,12 @@ public class CJApiClient
                 if (doc.RootElement.TryGetProperty("code", out var codeEl))
                 {
                     var code = codeEl.GetInt32();
-                    if (code != 200)
-                        throw new HttpRequestException($"CJ API error {code}: {body}");
-                    else if (code == 1600200)
+                    if (code == 1600200)
                     {
                         throw new InvalidOperationException($"CJ API rate limit exceeded {body}");
                     }
+                    else if (code != 200)
+                        throw new HttpRequestException($"CJ API error {code}: {body}");
                 }
 
                 try
@@ -115,33 +115,8 @@ public class CJApiClient
             {
                 if (ex.Message.Contains("rate limit"))
                 {
-                    Log.Information("Rate limit hit. Waiting 2 seconds and retrying once");
-                    await Task.Delay(2000);
-                    await ExecuteWithCjRateLimitAsync(async () =>
-                            {
-                                await AddAuthAsync();
-                                var response = await _httpClient.GetAsync(endpoint);
-                                var body = await response.Content.ReadAsStringAsync();
-                                
-                                if (!response.IsSuccessStatusCode)
-                                {
-                                    throw new HttpRequestException($"CJ HTTP error on retry: {body}");
-                                }
-                                
-                                using var doc = JsonDocument.Parse(body);
-                                if (doc.RootElement.TryGetProperty("code", out var codeEl))
-                                {
-                                    var code = codeEl.GetInt32();
-                                    if (code != 200)
-                                    {
-                                        throw new HttpRequestException($"CJ API error {code} on retry: {body}");
-                                    }
-                                }
-
-                                result = JsonConvert.DeserializeObject<T>(body)!;
-                            });
-                            
-                            Log.Information("Retry successful");
+                    Log.Information("Rate limit hit.");
+                    throw;
                 }
             }
 
@@ -193,115 +168,38 @@ public class CJApiClient
         }
     }
     // By Default, Loop through 50 page, 50 products each page to LOOK for PIDs only
-    // shoe rack DONE
-    // shoe organizer DONE
-    // shoe storage DONE
-    // shoe cabinet
-    // shoe shelf
-    // shoe shelves
-    // shoe stand
-    // shoe holder
-    // shoe storage cabinet
-    // shoe storage rack
-    // shoe storage shelf
-    // shoe storage organizer
-    public async Task<List<string>> GetPids(
-        IServiceScopeFactory scopeFactory,
-        int ebayCategoryId,
-        string productName,
-        Func<string, bool> productFilter,
-        int page = 100,
-        int size = 100,
-        int addMarkStatus = 1 // Free Shipping
-        )
+
+    public async Task<CjProductListV2Response> GetCjProductListAsync(string keyword, int page, int size, int addMarkStatus)
     {
-        var skus = new List<string>();
-
-        for (int currentPage = 1; currentPage <= page; currentPage++)
+        try
         {
-            Console.WriteLine($"Scanning page {currentPage}...");
-            try
-            {
-                var response = await GetAsync<CjProductListV2Response>($"product/listV2?" +
-                                                       $"keyWord={productName}&" +
-                                                       $"page={currentPage}&" +
-                                                       "countryCode=US&" +
-                                                       $"addMarkStatus={addMarkStatus}&" +
-                                                       $"size={size}&" +
-                                                       "verifiedWarehouse=1&" +
-                                                       "startWarehouseInventory=20&"
-                                                       );
+            var response = await GetAsync<CjProductListV2Response>($"product/listV2?" +
+                                                   $"keyWord={keyword}&" +
+                                                   $"page={page}&" +
+                                                   "countryCode=US&" +
+                                                   $"addMarkStatus={addMarkStatus}&" +
+                                                   $"size={size}&" +
+                                                   "verifiedWarehouse=1&" +
+                                                   "startWarehouseInventory=20&"
+                                                   );
+            return response;
 
-
-                if (response?.Data?.Content[0].ProductList == null || response.Data.Content[0].ProductList.Count == 0)
-                {
-                    Log.Information("No products returned. Possibly end of category.");
-                    break;
-                }
-
-                // Check if product is likely a {productName)
-                var productList = response.Data.Content[0].ProductList;
-                foreach (var product in productList)
-                {
-                    var productNameEn = product.NameEn;
-                    if (productFilter(productNameEn))
-                    {
-                        // If the product is likely a {productName}
-                        // Save it to the database
-                        using (var scope = scopeFactory.CreateScope())
-                        {
-                            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                            await SaveDirtySkuAsync(product.Sku, ebayCategoryId);
-
-                        }
-                    }
-                }
-            }
-            catch (HttpRequestException ex)
-            {
-                Log.Warning(ex, "HttpRequest error in GetPids");
-                // Continue. A failed request to Cj doesn't stop crawling
-                await Task.Delay(5000);
-            }
-            // save to the database
-            await Task.Delay(600);
         }
+        catch (HttpRequestException ex)
+        {
+            Log.Warning(ex, $"HttpRequest error in GetPids {ex.Message}");
+            // Continue. A failed request to Cj doesn't stop crawling
+            await Task.Delay(5000);
+        }
+        return null;
+        // save to the database
 
-        return skus;
+
     }
 
     public async Task<CjStockBySkuResponse> GetStockBySkuAsync(string variantSku)
     {
         return await GetAsync<CjStockBySkuResponse>($"product/stock/queryBySku?sku={variantSku}");
     }
-
-    private async Task SaveDirtySkuAsync(string sku, int categoryIdFromCategoryTable)
-    {
-        // Each field of dirtySku maps to a column in the table
-        var dirtySku = new DirtySku
-        {
-            Sku = sku,
-            CategoryId = categoryIdFromCategoryTable, // CategoryId is Fk to Category table 
-            Processed = false
-        };
-
-        try
-        {
-            _appDbContext.DirtySkus.Add(dirtySku);
-            await _appDbContext.SaveChangesAsync();
-        }
-
-        catch(DbUpdateException ex)
-        {
-            // 23505 = duplicate key violation
-            // Safe to ignore
-            if (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
-            {
-                Log.Information("Duplicate key. Move on");
-            } 
-        }
-    }
-
-
 
 }

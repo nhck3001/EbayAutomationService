@@ -6,18 +6,19 @@ using Newtonsoft.Json.Linq;
 using Serilog;
 
 // This class is used to talk to the Inventory API
-public class EbayInventoryService
+public class EbayInventoryApiClient
 {
     private readonly EbayApiClient _api;
 
-    public EbayInventoryService(EbayApiClient api)
+    public EbayInventoryApiClient(EbayApiClient api)
     {
         _api = api;
     }
 
-    // This is used to mass create InventoryItem, which is used to create listings later on
+    // This is used to create/update an InventoryItem, which is used to create listings later on
     // This represent a product, not the listing itself
-    public async Task<string> CreateOrUpdateInventoryItem(
+    // Will return an OperationResult object. This object will decide what the pipeline will do next
+    public async Task<OperationResult> CreateOrUpdateInventoryItem(
         string sku,
         string title,
         string description,
@@ -26,8 +27,6 @@ public class EbayInventoryService
         int quantity
     )
     {
-        Log.Information($"Trying to create Inventory Item sku {sku}");
-
         var body = new
         {
             product = new
@@ -55,8 +54,7 @@ public class EbayInventoryService
         // Success
         if (response.IsSuccessStatusCode)
         {
-            Log.Information($"InventoryItem created/updated for SKU: {sku}");
-            return SkuStatuses.InventoryCreatedid;
+            return OperationResult.Success();
         }
         // handling errors
         var responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
@@ -67,9 +65,8 @@ public class EbayInventoryService
         {
             if (error["message"].Value<string>().Contains("Invalid value for title"))
             {
-                // Business logic. Log and then Ignore for now
                 Log.Warning($"Invalid title value. {error["message"]}. Mark as processed and move on");
-                return SkuStatuses.Failed;
+                return OperationResult.Invalid(message: $"{error["message"]}. Mark as processed and move on)");
             }
         }
         // Most likely a listing error
@@ -80,14 +77,13 @@ public class EbayInventoryService
             {
                 // Business logic. Log and then Ignore for now
                 Log.Warning($"Invalid title value. {error["message"]}. Mark as processed and move on");
-                return SkuStatuses.Failed;
+                return OperationResult.Invalid(message: $"{error["message"]}. Mark as processed and move on");
             }
         }
 
         // For all other exceptions log and continue. Mark as failed
         Log.Warning($"Create inventory for {sku} fail. {error?["errorId"]}: {error["message"]}.");
-        return SkuStatuses.Failed;
-
+        return OperationResult.Invalid(message: $"{error["message"]}");
     }
 
 
@@ -161,7 +157,7 @@ public class EbayInventoryService
     /// Create an InventoryLocation, identified by merchantLocationKey
     /// </summary>
     /// <param name="merchantLocationKey"></param>
-    /// <returns></returns>
+    /// <returns> an OperationResult object deciding what the next steps would be</returns>
     /// <exception cref="HttpRequestException"></exception>
     public async Task CreateInventoryLocationIfNotExists(string merchantLocationKey)
     {

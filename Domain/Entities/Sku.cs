@@ -4,9 +4,10 @@ public class Sku
     public int Id { get; set; }
 
     public string SkuCode { get; set; } = null!;
-    public string Pid { get; set; } = null!;
-
     public string Title { get; set; } = null!;
+
+    public int Ebay_Category_Id { get; set; }
+    public string? OfferId { get; set; } = null;
     public string Description { get; set; } = null!;
 
     public string[] ImageUrls { get; set; } = null!;
@@ -25,9 +26,9 @@ public class Sku
 }
 public static class SkuStatuses
 {
-    public const string Pending = "PENDING";
+    public const string Pending = "Pending";
     public const string InventoryCreatedid = "InventoryCreated";
-    public const string Rejected = "REJECTED";
+    public const string Rejected = "Rejected";
 
     public const string OfferCreated = "OfferCreated";
     public const string Published = "Published";

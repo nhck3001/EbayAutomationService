@@ -102,7 +102,7 @@ public class EbayCategoryService
     }
 
 
-    public async Task<string> getCompleteCategoryTree(string categoryTreeId = "0")
+    public async Task<JToken> getCompleteCategoryTree(string categoryTreeId = "0")
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/commerce/taxonomy/v1/category_tree/{categoryTreeId}");
         var response = await _api.SendAsync(request);
@@ -117,7 +117,8 @@ public class EbayCategoryService
                 response.StatusCode
             );
         }
-        return responseJson;
+
+        return JObject.Parse(responseJson);
     }
 
     public async Task<string> getSuggesstedCategory(string suggesstedPhrase)
