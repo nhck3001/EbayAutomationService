@@ -24,17 +24,28 @@ public class CleanSkuUseCase
         _deepSeekClient = deepSeekClient;
 
     }
-    public async Task ExecuteAsync(string ebayCategoryId)
+    public async Task ExecuteAsync()
+    {
+        // Get the list of categorieIds
+        List<string> categoryIds = null;
+        using (var scope = _scopeFactory.CreateScope())
         {
-
-            // Get required and recommended aspects
-            var requiredAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: ebayCategoryId, aspect: "RequiredAspects");
-            var recommendedAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: ebayCategoryId, aspect: "RecommendedAspects");
-            var categoryName = await Helper.GetEbayCategoryName(ebayCategoryId);
-
+            var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            categoryIds = await appDbContext.Categories.Select(row => row.EbayCategoryId.ToString()).ToListAsync();
+        }
+        foreach (var categoryId in categoryIds)
+        {
+            var requiredAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: categoryId, aspect: "RequiredAspects");
+            var recommendedAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: categoryId, aspect: "RecommendedAspects");
+            string categoryName = null;
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                categoryName =  appDbContext.Categories.Where(c => c.EbayCategoryId == int.Parse(categoryId)).Select(s => s.EbayCategoryName).First();
+            }
             int batchNumber = 0;
             bool hasMore = true;
-
+            Log.Information($"Clean category {categoryId}...");
             while (hasMore && (maxBatches == null || batchNumber < maxBatches))
             {
                 batchNumber++;
@@ -53,7 +64,6 @@ public class CleanSkuUseCase
                     .ToListAsync();
                 }
 
-
                 if (dirtySkuIds.Count == 0)
                 {
                     hasMore = false;
@@ -62,8 +72,11 @@ public class CleanSkuUseCase
                 }
 
                 await ProcessBatch(_scopeFactory, dirtySkuIds, _cjApiClient, _deepSeekClient, requiredAspects, recommendedAspects, categoryName);
-            }
+            }    
+            Log.Information($"Finish cleaning category {categoryId}...");
+            
         }
+    }
     
     private static async Task ProcessBatch(IServiceScopeFactory scopeFactory, List<int> dirtySkuIds, CJApiClient cjClient, DeepSeekClient deepSeekClient, string requiredAspects, string recommendedAspects, string categoryName)
     {
