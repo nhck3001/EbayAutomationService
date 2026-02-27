@@ -7,7 +7,6 @@ public class CrawlerUseCase
 {
     private readonly CJApiClient _cjApiClient;
     private readonly IServiceScopeFactory _scopeFactory;
-
     private readonly int maxPages = 100;
     private readonly int pageSize = 100;
     public CrawlerUseCase(IServiceScopeFactory scopeFactory, CJApiClient cjApiClient)
@@ -16,69 +15,72 @@ public class CrawlerUseCase
         _cjApiClient = cjApiClient;
     }
 
-    public async Task CrawlProductsAsync(string ebayCategoryId)
+    public async Task CrawlProductsAsync()
     {
-        var keyWords = GetKeyWord(ebayCategoryId);
-        var filterFunction = GetFilter(ebayCategoryId);
-        // Querry keyword by keyword
-        foreach (var keyWord in keyWords)
+        // Get the list of categorieIds
+        List<int> categoryIds = null;
+        using (var scope = _scopeFactory.CreateScope())
         {
-            Log.Information($"-----------------------Looping keyword {keyWord}-----------------------");
-
-            for (int currentPage = 1; currentPage <= maxPages; currentPage++)
+            var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            categoryIds = await appDbContext.Categories.Select(row => row.EbayCategoryId).ToListAsync();
+        }
+        // Loop through each categoryId
+        foreach (var categoryId in categoryIds)
+        {
+            List<string> keyWords = null;
+            using (var scope = _scopeFactory.CreateScope())
             {
-                try
+                var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                keyWords = await appDbContext.Categories.Where(c => c.EbayCategoryId == categoryId).Select(c => c.Keyword).FirstOrDefaultAsync();
+            }
+            Log.Information($"-----------------------Looping category {categoryId}-----------------------");
+            var filterFunction = GetFilter(categoryId);
+            // Querry keyword by keyword
+            foreach (var keyWord in keyWords)
+            {
+                Log.Information($"-----------------------Looping keyword {keyWord}-----------------------");
+
+                for (int currentPage = 1; currentPage <= maxPages; currentPage++)
                 {
-                    var response = await _cjApiClient.GetCjProductListAsync(keyWord, currentPage, pageSize, addMarkStatus: 1);
-
-                    if (response?.Data?.Content[0]?.ProductList == null || response.Data.Content[0].ProductList.Count == 0)
+                    try
                     {
-                        Log.Information($"No more products found for {keyWord}");
-                        break;
-                    }
+                        var response = await _cjApiClient.GetCjProductListAsync(keyWord, currentPage, pageSize, addMarkStatus: 1);
 
-                    foreach (var product in response.Data.Content[0].ProductList)
-                    {
-                        if (filterFunction(product.NameEn))
+                        if (response?.Data?.Content[0]?.ProductList == null || response.Data.Content[0].ProductList.Count == 0)
                         {
-                            await SaveDirtySkuAsync(product.Sku, int.Parse(ebayCategoryId));
+                            Log.Information($"No more products found for {keyWord}");
+                            break;
+                        }
+
+                        foreach (var product in response.Data.Content[0].ProductList)
+                        {
+                            if (filterFunction(product.NameEn))
+                            {
+                                await SaveDirtySkuAsync(product.Sku, categoryId);
+                            }
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    Log.Warning(ex, "Error crawling page {Page}", currentPage);
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Error crawling page {Page}", currentPage);
+                    }
                 }
             }
+            Log.Information($"Finish all keywords for category {categoryId}");
         }
-        Log.Information($"Finish all keywords");
+        
 
     }
     // Check if a product is likely a shoe organizer
-    public static Func<string, bool> GetFilter(string ebayCategoryId)
+    public static Func<string, bool> GetFilter(int ebayCategoryId)
     {
         switch (ebayCategoryId)
         {
             // Shoe organizer
-            case "43506":
+            case 43506:
                 return IsLikelyShoeOrganizer;
-            case "22656":
+            case 22656:
                 return IsLikelyCoatAndHatRack;
-        }
-        // SHould never reach here
-        return null;
-    }
-
-    public static List<string> GetKeyWord(string ebayCategoryId)
-    {
-        switch (ebayCategoryId)
-        {
-            // Shoe organizer
-            case "43506":
-                return ["shoe rack", "shoe organizer", "shoe storage", "shoe cabinet", "shoe shelf", "shoe stand", "shoe tower", "shoe bench",];
-            // Coat & Hat Rack
-            case "22656":
-                return ["coat rack", "hat rack", "coat and hat rack", "hall tree", "valet stand",];
         }
         // SHould never reach here
         return null;
@@ -170,8 +172,12 @@ public class CrawlerUseCase
             {
                 Log.Information("Duplicate key. Move on");
             }
-            Log.Information($"{ex.Message}");
-
+            else
+            {
+                Log.Information($"{ex.InnerException.Message}");   
+                Log.Information($"{ex.InnerException.Data}");
+                throw;
+            }
         }
 
     }
