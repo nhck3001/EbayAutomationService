@@ -135,15 +135,16 @@ class Program
                     var publishOfferUseCase = scope.ServiceProvider.GetRequiredService<PublishOfferUseCase>();
                     await publishOfferUseCase.ExecuteAsync();
                 }
-                break;          
+                break;
             case "test":
                 using (var scope = host.Services.CreateScope())
                 {
-                    var ebayClient = scope.ServiceProvider.GetRequiredService<EbayCategoryService>();
-                    var x = await ebayClient.GetItemAspectForCategory("43506");
+                    var cjApiClient = scope.ServiceProvider.GetRequiredService<CJApiClient>();
+                    await cjApiClient.ForceQpsAsync();
                 }
                 break;
         }
+
     }
 
 }

@@ -62,67 +62,63 @@ private static DateTime _lastRequestTime = DateTime.UtcNow.AddSeconds(-1);
 
     private async Task<T> GetAsync<T>(string endpoint)
     {
-        T result = default!;
+        const int maxRetries = 5;
+        const int delaySeconds = 10;
 
-        await ExecuteWithCjRateLimitAsync(async () =>
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
             try
             {
-                await AddAuthAsync(); // token refresh is now protected
+                T result = default!;
 
-                var response = await _httpClient.GetAsync(endpoint);
-                var body = await response.Content.ReadAsStringAsync();
-                // Catch HttpRequestException
-                if (!response.IsSuccessStatusCode)
+                await ExecuteWithCjRateLimitAsync(async () =>
                 {
-                    throw new HttpRequestException($"CJ HTTP error: {body}");
-                }
-                using var doc = JsonDocument.Parse(body);
-                if (doc.RootElement.TryGetProperty("code", out var codeEl))
-                {
-                    var code = codeEl.GetInt32();
-                    if (code == 1600200)
+                    await AddAuthAsync();
+
+                    var response = await _httpClient.GetAsync(endpoint);
+                    var body = await response.Content.ReadAsStringAsync();
+
+                    if (!response.IsSuccessStatusCode)
                     {
-                        throw new InvalidOperationException($"CJ API rate limit exceeded {body}");
+                        throw new HttpRequestException($"CJ HTTP error: {body}");
                     }
-                    else if (code != 200)
-                        throw new HttpRequestException($"CJ API error {code}: {body}");
-                }
 
-                try
-                {
+                    using var doc = JsonDocument.Parse(body);
+                    if (doc.RootElement.TryGetProperty("code", out var codeEl))
+                    {
+                        var code = codeEl.GetInt32();
+
+                        if (code == 1600200)
+                        {
+                            throw new HttpRequestException("CJ_RATE_LIMIT");
+                        }
+
+                        if (code != 200)
+                        {
+                            throw new HttpRequestException($"CJ API error {code}: {body}");
+                        }
+                    }
+
                     result = JsonConvert.DeserializeObject<T>(body)!;
-                }
-                catch (Newtonsoft.Json.JsonException ex)
-                {
-                    // Log the error
-                    Log.Warning($"[ERROR] Failed to deserialize response to {typeof(T).Name}: {ex.Message}");
-                    Log.Warning($"[ERROR] Response body: {body}");
+                });
 
-                    // Return default value for T (null for reference types)
-                    result = default!;
+                return result; // success
+            }
+            catch (HttpRequestException ex) when (ex.Message.Contains("CJ_RATE_LIMIT"))
+            {
+                Log.Warning("Rate limit hit. Attempt {Attempt}/{MaxRetries}", attempt, maxRetries);
 
-                    // Or throw a more meaningful exception
-                    throw new Exception($"Failed to parse CJ API response to {typeof(T).Name}", ex);
-                }
-            }
-            catch (HttpRequestException ex)
-            {
-                Log.Warning(ex, $"HttpRequest fail for endpoint {endpoint}");
-                throw; // Throw up to parent to handle
-            }
-            catch (InvalidOperationException ex)
-            {
-                if (ex.Message.Contains("rate limit"))
+                if (attempt == maxRetries)
                 {
-                    Log.Information("Rate limit hit.");
+                    Log.Error("Max retries reached for endpoint {Endpoint}", endpoint);
                     throw;
                 }
+
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
             }
+        }
 
-        });
-
-        return result;
+        throw new Exception("Unexpected retry failure");
     }
 
     // ---------- READ-ONLY ENDPOINTS ----------
@@ -157,15 +153,6 @@ private static DateTime _lastRequestTime = DateTime.UtcNow.AddSeconds(-1);
                 throw;
             }
         }
-        // Catch rate limit error. After retry, simply return null
-        catch (InvalidOperationException ex)
-        {
-            if (ex.Message.Contains("rate limit exceeded"))
-            {
-                return null;
-            }
-            return null;
-        }
     }
     // By Default, Loop through 50 page, 50 products each page to LOOK for PIDs only
 
@@ -188,18 +175,23 @@ private static DateTime _lastRequestTime = DateTime.UtcNow.AddSeconds(-1);
         catch (HttpRequestException ex)
         {
             Log.Warning(ex, $"HttpRequest error in GetPids {ex.Message}");
-            // Continue. A failed request to Cj doesn't stop crawling
-            await Task.Delay(5000);
+            throw;
         }
-        return null;
-        // save to the database
-
-
     }
 
     public async Task<CjStockBySkuResponse> GetStockBySkuAsync(string variantSku)
     {
         return await GetAsync<CjStockBySkuResponse>($"product/stock/queryBySku?sku={variantSku}");
     }
+        public async Task ForceQpsAsync()
+        {
+            var tasks = new List<Task>();
 
+            for (int i = 0; i < 50; i++)
+            {
+                tasks.Add(GetCjProductListAsync("shoe rack", 1, 100, 1));
+            }
+
+            await Task.WhenAll(tasks);
+        }
 }
