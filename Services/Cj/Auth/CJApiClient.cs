@@ -14,7 +14,7 @@ public class CJApiClient
     private readonly CjTokenManager _tokenManager;
     // Semaphore lock to ensure 1 thead can call API at a time
     private static readonly SemaphoreSlim _rateLimiter = new(1, 1);
-private static DateTime _lastRequestTime = DateTime.UtcNow.AddSeconds(-1);
+    private static DateTime _lastRequestTime = DateTime.UtcNow.AddSeconds(-1);
     private const string BaseUrl = "https://developers.cjdropshipping.com/api2.0/v1/";
     public AppDbContext _appDbContext;
 
@@ -30,10 +30,9 @@ private static DateTime _lastRequestTime = DateTime.UtcNow.AddSeconds(-1);
             {
                 await Task.Delay(1100 - (int)elapsed.TotalMilliseconds);
             }
-
+            _lastRequestTime = DateTime.UtcNow;
             await action(); //  the ACTUAL CJ call happens here
 
-            _lastRequestTime = DateTime.UtcNow;
         }
         finally
         {
