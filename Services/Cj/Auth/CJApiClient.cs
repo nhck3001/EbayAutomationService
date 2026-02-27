@@ -1,52 +1,23 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
-using EbayAutomationService.Helper;
 using EbayAutomationService.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
-using Npgsql;
 using Serilog;
 
 public class CJApiClient
 {
     private readonly HttpClient _httpClient;
     private readonly CjTokenManager _tokenManager;
-    // Semaphore lock to ensure 1 thead can call API at a time
-    private static readonly SemaphoreSlim _rateLimiter = new(1, 1);
-    private static DateTime _lastRequestTime = DateTime.UtcNow.AddSeconds(-1);
     private const string BaseUrl = "https://developers.cjdropshipping.com/api2.0/v1/";
-    public AppDbContext _appDbContext;
+    private CJRateLimiter _rateLimiter;
 
-    // Make sure every API request is called no more often than every 1.1 s
-    // Because Cj QPS is 1 per second. This is global.
-    private async Task ExecuteWithCjRateLimitAsync(Func<Task> action)
-    {
-        await _rateLimiter.WaitAsync();
-        try
-        {
-            var elapsed = DateTime.UtcNow - _lastRequestTime;
-            if (elapsed.TotalMilliseconds < 1100)
-            {
-                await Task.Delay(1100 - (int)elapsed.TotalMilliseconds);
-            }
-            _lastRequestTime = DateTime.UtcNow;
-            await action(); //  the ACTUAL CJ call happens here
-
-        }
-        finally
-        {
-            _rateLimiter.Release();
-        }
-    }
-
-    public CJApiClient(HttpClient httpClient, CjTokenManager tokenManager, AppDbContext appDbContext)
+    public CJApiClient(HttpClient httpClient, CjTokenManager tokenManager, CJRateLimiter rateLimiter)
     {
         _tokenManager = tokenManager;
-        _appDbContext = appDbContext;
-
         _httpClient = httpClient;
         _httpClient.BaseAddress = new Uri(BaseUrl);
+        _rateLimiter = rateLimiter;
         _httpClient.Timeout = TimeSpan.FromSeconds(30);
         _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json")
         );
@@ -58,66 +29,62 @@ public class CJApiClient
         _httpClient.DefaultRequestHeaders.Remove("CJ-Access-Token");
         _httpClient.DefaultRequestHeaders.Add("CJ-Access-Token", token);
     }
-
-    private async Task<T> GetAsync<T>(string endpoint)
+    private async Task<T> ExecuteWithRetryAsync<T>(Func<Task<T>> action)
     {
         const int maxRetries = 5;
-        const int delaySeconds = 10;
 
         for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
             try
             {
-                T result = default!;
-
-                await ExecuteWithCjRateLimitAsync(async () =>
-                {
-                    await AddAuthAsync();
-
-                    var response = await _httpClient.GetAsync(endpoint);
-                    var body = await response.Content.ReadAsStringAsync();
-
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        throw new HttpRequestException($"CJ HTTP error: {body}");
-                    }
-
-                    using var doc = JsonDocument.Parse(body);
-                    if (doc.RootElement.TryGetProperty("code", out var codeEl))
-                    {
-                        var code = codeEl.GetInt32();
-
-                        if (code == 1600200)
-                        {
-                            throw new HttpRequestException("CJ_RATE_LIMIT");
-                        }
-
-                        if (code != 200)
-                        {
-                            throw new HttpRequestException($"CJ API error {code}: {body}");
-                        }
-                    }
-
-                    result = JsonConvert.DeserializeObject<T>(body)!;
-                });
-
-                return result; // success
+                return await action();
             }
-            catch (HttpRequestException ex) when (ex.Message.Contains("CJ_RATE_LIMIT"))
+            catch (CjRateLimitException)
             {
-                Log.Warning("Rate limit hit. Attempt {Attempt}/{MaxRetries}", attempt, maxRetries);
-
                 if (attempt == maxRetries)
-                {
-                    Log.Error("Max retries reached for endpoint {Endpoint}", endpoint);
                     throw;
-                }
 
-                await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attempt));
+                Log.Warning("Rate limit. Retrying in {Delay}s", delay.TotalSeconds);
+                await Task.Delay(delay);
             }
         }
 
-        throw new Exception("Unexpected retry failure");
+        throw new Exception("Unexpected retry exit");
+    }
+    private async Task<T> GetAsync<T>(string endpoint)
+    {
+        return await ExecuteWithRetryAsync(async () =>
+        {
+            HttpResponseMessage response = null!;
+            string body = null!;
+
+            await _rateLimiter.ExecuteWithCjRateLimitAsync(async () =>
+            {
+                await AddAuthAsync();
+                response = await _httpClient.GetAsync(endpoint);
+            });
+
+            body = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+                throw new CjApiException((int)response.StatusCode, body);
+
+            using var doc = JsonDocument.Parse(body);
+
+            if (doc.RootElement.TryGetProperty("code", out var codeEl))
+            {
+                var code = codeEl.GetInt32();
+                // Throw up to ExecuteWithRetryAsync
+                if (code == 1600200)
+                    throw new CjRateLimitException();
+                // Throw up to ExecuteWithRetryAsync
+                if (code != 200)
+                    throw new CjApiException(code, body);
+            }
+
+            return JsonConvert.DeserializeObject<T>(body)!;
+        });
     }
 
     // ---------- READ-ONLY ENDPOINTS ----------
@@ -139,7 +106,7 @@ public class CJApiClient
             return result;
         }
         // Product has been removed from cell. 
-        catch (HttpRequestException ex)
+        catch (CjApiException ex)
         {
             if (ex.Message.Contains("Product has been removed from shelves"))
             {
@@ -171,9 +138,9 @@ public class CJApiClient
             return response;
 
         }
-        catch (HttpRequestException ex)
+        catch (CjApiException ex)
         {
-            Log.Warning(ex, $"HttpRequest error in GetPids {ex.Message}");
+            Log.Warning(ex, $" error in GetPids {ex.Message}");
             throw;
         }
     }
