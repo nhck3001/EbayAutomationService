@@ -60,6 +60,11 @@ public class CrawlerUseCase
                             }
                         }
                     }
+                    catch (CjRateLimitException cjEx)
+                    {
+                        Log.Information($"Daily request for crawling reached. Exit gracefully");
+                        return;                 
+                    }
                     catch (Exception ex)
                     {
                         Log.Warning(ex, "Error crawling page {Page}", currentPage);

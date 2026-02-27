@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using EbayAutomationService.Models;
@@ -66,22 +67,32 @@ public class CJApiClient
             });
 
             body = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
-                throw new CjApiException((int)response.StatusCode, body);
-
             using var doc = JsonDocument.Parse(body);
+
 
             if (doc.RootElement.TryGetProperty("code", out var codeEl))
             {
-                var code = codeEl.GetInt32();
-                // Throw up to ExecuteWithRetryAsync
+                // First check daily limit
+                var code = codeEl.GetInt32();                
+                // Then catch QPS Throw up to ExecuteWithRetryAsync
                 if (code == 1600200)
-                    throw new CjRateLimitException();
-                // Throw up to ExecuteWithRetryAsync
-                if (code != 200)
-                    throw new CjApiException(code, body);
+                {
+                    // First check daily limit
+                    if (doc.RootElement.TryGetProperty("message", out var messageEl))
+                    {
+                        var message = messageEl.ToString();
+                        if (message.Contains("reached the daily request limit"))
+                        {
+                            throw new CjDailyLimitException();
+                        }
+                    }
+                    // Assume it is rate limit exception for all other exception fo code 1600200
+                    throw new CjRateLimitException();    
+                }
             }
+            // Catch other exceptions
+            if (!response.IsSuccessStatusCode)
+                throw new CjApiException((int)response.StatusCode, body);
 
             return JsonConvert.DeserializeObject<T>(body)!;
         });
@@ -105,6 +116,10 @@ public class CJApiClient
             var result = await GetAsync<CjProductDetailResponse>(endpoint);
             return result;
         }
+        catch (CjDailyLimitException)
+        {
+            throw; // explicitly bubble up
+        } 
         // Product has been removed from cell. 
         catch (CjApiException ex)
         {
@@ -143,21 +158,22 @@ public class CJApiClient
             Log.Warning(ex, $" error in GetPids {ex.Message}");
             throw;
         }
-    }
+        catch (CjDailyLimitException)
+        {
+            throw; // explicitly bubble up
+        }    
+}
 
     public async Task<CjStockBySkuResponse> GetStockBySkuAsync(string variantSku)
     {
-        return await GetAsync<CjStockBySkuResponse>($"product/stock/queryBySku?sku={variantSku}");
-    }
-        public async Task ForceQpsAsync()
+        try
         {
-            var tasks = new List<Task>();
-
-            for (int i = 0; i < 50; i++)
-            {
-                tasks.Add(GetCjProductListAsync("shoe rack", 1, 100, 1));
-            }
-
-            await Task.WhenAll(tasks);
+        return await GetAsync<CjStockBySkuResponse>($"product/stock/queryBySku?sku={variantSku}");
+            
         }
+        catch (CjDailyLimitException)
+        {
+            throw; // explicitly bubble up
+        } 
+    }
 }

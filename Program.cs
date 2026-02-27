@@ -73,6 +73,7 @@ class Program
                 services.AddScoped<CrawlerUseCase>();
                 services.AddScoped<CleanSkuUseCase>();
                 services.AddScoped<PublishOfferUseCase>();
+                services.AddScoped<CJRateLimiter>();
 
             })
             .Build();
@@ -139,8 +140,7 @@ class Program
             case "test":
                 using (var scope = host.Services.CreateScope())
                 {
-                    var cjApiClient = scope.ServiceProvider.GetRequiredService<CJApiClient>();
-                    await cjApiClient.ForceQpsAsync();
+
                 }
                 break;
         }

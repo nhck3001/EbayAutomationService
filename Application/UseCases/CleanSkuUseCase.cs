@@ -26,60 +26,69 @@ public class CleanSkuUseCase
     }
     public async Task ExecuteAsync()
     {
-        // Get the list of categorieIds
-        List<string> categoryIds = null;
-        using (var scope = _scopeFactory.CreateScope())
+        try
         {
-            var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            categoryIds = await appDbContext.Categories.Select(row => row.EbayCategoryId.ToString()).ToListAsync();
-        }
-        foreach (var categoryId in categoryIds)
-        {
-            var requiredAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: categoryId, aspect: "RequiredAspects");
-            var recommendedAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: categoryId, aspect: "RecommendedAspects");
-            string categoryName = null;
+            // Get the list of categorieIds
+            List<string> categoryIds = null;
             using (var scope = _scopeFactory.CreateScope())
             {
                 var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                categoryName =  appDbContext.Categories.Where(c => c.EbayCategoryId == int.Parse(categoryId)).Select(s => s.EbayCategoryName).First();
+                categoryIds = await appDbContext.Categories.Select(row => row.EbayCategoryId.ToString()).ToListAsync();
             }
-            int batchNumber = 0;
-            bool hasMore = true;
-            Log.Information($"Clean category {categoryId}...");
-            while (hasMore && (maxBatches == null || batchNumber < maxBatches))
+            foreach (var categoryId in categoryIds)
             {
-                batchNumber++;
-                Log.Information($"Processing batch {batchNumber}...");
-
-                // Get next batch of unprocessed SKUs
-                List<int> dirtySkuIds = new List<int>();
+                var requiredAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: categoryId, aspect: "RequiredAspects");
+                var recommendedAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: categoryId, aspect: "RecommendedAspects");
+                string categoryName = null;
                 using (var scope = _scopeFactory.CreateScope())
                 {
                     var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    dirtySkuIds = await appDbContext.DirtySkus
-                    .Where(sku => sku.Processed == false)
-                    .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
-                    .Take(batchSize)
-                    .Select(s => s.Id)
-                    .ToListAsync();
+                    categoryName = appDbContext.Categories.Where(c => c.EbayCategoryId == int.Parse(categoryId)).Select(s => s.EbayCategoryName).First();
                 }
-
-                if (dirtySkuIds.Count == 0)
+                int batchNumber = 0;
+                bool hasMore = true;
+                Log.Information($"Clean category {categoryId}...");
+                while (hasMore && (maxBatches == null || batchNumber < maxBatches))
                 {
-                    hasMore = false;
-                    Log.Information("Has processed all dirty Skus/batches");
-                    break;
-                }
+                    batchNumber++;
+                    Log.Information($"Processing batch {batchNumber}...");
 
-                await ProcessBatch(_scopeFactory, dirtySkuIds, _cjApiClient, _deepSeekClient, requiredAspects, recommendedAspects, categoryName);
-            }    
-            Log.Information($"Finish cleaning category {categoryId}...");
-            
+                    // Get next batch of unprocessed SKUs
+                    List<int> dirtySkuIds = new List<int>();
+                    using (var scope = _scopeFactory.CreateScope())
+                    {
+                        var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                        dirtySkuIds = await appDbContext.DirtySkus
+                        .Where(sku => sku.Processed == false)
+                        .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
+                        .Take(batchSize)
+                        .Select(s => s.Id)
+                        .ToListAsync();
+                    }
+
+                    if (dirtySkuIds.Count == 0)
+                    {
+                        hasMore = false;
+                        Log.Information("Has processed all dirty Skus/batches");
+                        break;
+                    }
+
+                    await ProcessBatch(_scopeFactory, dirtySkuIds, _cjApiClient, _deepSeekClient, requiredAspects, recommendedAspects, categoryName);
+                }
+                Log.Information($"Finish cleaning category {categoryId}...");
+
+            }
+        }
+        catch (CjDailyLimitException)
+        {
+            Log.Information($"Cleaning sku and daily limit reached for cj. Exit gracefully");
+            return;
         }
     }
-    
+
     private static async Task ProcessBatch(IServiceScopeFactory scopeFactory, List<int> dirtySkuIds, CJApiClient cjClient, DeepSeekClient deepSeekClient, string requiredAspects, string recommendedAspects, string categoryName)
     {
+
         foreach (var dirtySkuId in dirtySkuIds)
         {
             await ProcessSingleSku(scopeFactory, dirtySkuId, cjClient, deepSeekClient, requiredAspects, recommendedAspects, categoryName);
@@ -91,39 +100,40 @@ public class CleanSkuUseCase
                 await context.SaveChangesAsync();
             }
         }
+               
     }
     private static async Task ProcessSingleSku(IServiceScopeFactory scopeFactory, int dirtySkuId, CJApiClient cjClient, DeepSeekClient deepSeekClient, string requiredAspectsForPrompt, string recommendedAspectsForPrompt, string categoryName)
     {
 
-            CjProductDetailResponse productInfo = new CjProductDetailResponse();
-            var ebayCategoryId = 0;
-            using (var scope = scopeFactory.CreateScope())
-            {
-                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                var dirtySku = await context.DirtySkus.FindAsync(dirtySkuId);
-                Log.Information($"Fetching product info for sku {dirtySku.Sku}");
-                productInfo = await cjClient.GetProductDetailAsync(dirtySku.Sku, isProductSku: true);
-                ebayCategoryId = dirtySku.EbayCategoryId;
+        CjProductDetailResponse productInfo = new CjProductDetailResponse();
+        var ebayCategoryId = 0;
+        DirtySku dirtySku = null;
+        using (var scope = scopeFactory.CreateScope())
+        {
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            dirtySku = await context.DirtySkus.FindAsync(dirtySkuId);
+        }
 
-                if (productInfo == null)
-                {
-                    Log.Information($"Skip sku {dirtySku.Sku}. Product has been removed from shell");
-                    return;
-                }
-                else if (productInfo.Data.Variants == null)
-                {
-                    Log.Information($"Skip sku {dirtySku.Sku} - no variants");
-                    return;
-                }
-            }                
+            Log.Information($"Fetching product info for sku {dirtySku.Sku}");
+            productInfo = await cjClient.GetProductDetailAsync(dirtySku.Sku, isProductSku: true);
+            ebayCategoryId = dirtySku.EbayCategoryId;
+            if (productInfo == null)
+            {
+                Log.Information($"Skip sku {dirtySku.Sku}. Product has been removed from shell");
+                return;
+            }
+            else if (productInfo.Data.Variants == null)
+            {
+                Log.Information($"Skip sku {dirtySku.Sku} - no variants");
+                return;
+            }
+
             foreach (var variant in productInfo.Data.Variants)
             {
-                await ProcessVariant(scopeFactory, variant, ebayCategoryId, productInfo, cjClient, deepSeekClient, requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName);       
+                await ProcessVariant(scopeFactory, variant, ebayCategoryId, productInfo, cjClient, deepSeekClient, requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName);
                 break; // Only process 1 variant per product       
-            }
-                
-        
-        }   
+            }   
+    }   
         
     
 
