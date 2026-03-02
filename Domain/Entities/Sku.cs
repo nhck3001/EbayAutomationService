@@ -19,7 +19,7 @@ public class Sku
 
     public string SkuStatus { get; set; } = SkuStatuses.Pending;
     public DateTime CreatedAt { get; set; }
-    public int avilableInventory { get; set; }
+    public int availableInventory { get; set; }
 
 
 }

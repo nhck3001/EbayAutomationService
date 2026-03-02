@@ -60,7 +60,7 @@ public class CreateInventoryUseCase
                                 sku.Description,
                                 sku.ImageUrls.ToList(),
                                 itemSpecifics,
-                                10);
+                                sku.availableInventory);
 
 
             switch (result.Outcome)

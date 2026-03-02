@@ -234,7 +234,7 @@ public class CleanSkuUseCase
             SellPrice = aiResult.Sellprice,
             SkuStatus = SkuStatuses.Pending,
             CreatedAt = DateTime.UtcNow,
-            avilableInventory = usStock,
+            availableInventory = usStock,
         };
         // Add to Sku table
         try
