@@ -29,6 +29,8 @@ public class SkuConfiguration : IEntityTypeConfiguration<Sku>
         builder.Property(x => x.SkuStatus).HasColumnName("sku_status").HasDefaultValue(SkuStatuses.Pending);
         // Created At timestamp - defaults to current database time (NOW())
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
+        // Product Description - maps to 'description' column, cannot be NULL
+        builder.Property(x => x.avilableInventory).HasColumnName("available_inventory").IsRequired();
         // Unique index on SkuCode - ensures no duplicate SKU codes can exist
         builder.HasIndex(x => x.SkuCode).IsUnique();
         // Regular index on sku_status - speeds up queries filtering by status

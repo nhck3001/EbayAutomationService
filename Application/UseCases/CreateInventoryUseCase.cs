@@ -8,14 +8,12 @@ public class CreateInventoryUseCase
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly EbayInventoryApiClient _ebayInventoryApiClient;
-    private readonly ILogger<CreateInventoryUseCase> _logger;
     private readonly int batchSize = 20;
 
-    public CreateInventoryUseCase(IServiceScopeFactory scopeFactory, EbayInventoryApiClient ebayInventoryApiClient, ILogger<CreateInventoryUseCase> logger)
+    public CreateInventoryUseCase(IServiceScopeFactory scopeFactory, EbayInventoryApiClient ebayInventoryApiClient)
     {
         _scopeFactory = scopeFactory;
         _ebayInventoryApiClient = ebayInventoryApiClient;
-        _logger = logger;
     }
 
     public async Task ExecuteAsync()

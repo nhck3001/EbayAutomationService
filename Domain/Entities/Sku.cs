@@ -19,9 +19,8 @@ public class Sku
 
     public string SkuStatus { get; set; } = SkuStatuses.Pending;
     public DateTime CreatedAt { get; set; }
+    public int avilableInventory { get; set; }
 
-    // Navigation
-    public Listing? Listing { get; set; }
 
 }
 public static class SkuStatuses
