@@ -133,31 +133,32 @@ public class CleanSkuUseCase
                 await ProcessVariant(scopeFactory, variant, ebayCategoryId, productInfo, cjClient, deepSeekClient, requiredAspectsForPrompt, recommendedAspectsForPrompt, categoryName);
                 break; // Only process 1 variant per product       
             }   
-    }   
-        
-    
+    }
 
-    private static async Task ProcessVariant(IServiceScopeFactory scopeFactory,CjVariant variant, int ebayCategoryId,
+
+
+    private static async Task ProcessVariant(IServiceScopeFactory scopeFactory, CjVariant variant, int ebayCategoryId,
         CjProductDetailResponse productInfo, CJApiClient cjClient, DeepSeekClient deepSeekClient,
          string requiredAspectsForPrompt, string recommendedAspectsForPrompt,
         string categoryName)
-        
+
     {
         var settings = new JsonSerializerSettings
         {
-            NullValueHandling = NullValueHandling.Ignore  
+            NullValueHandling = NullValueHandling.Ignore
         };
         try
         {
             // Check US availability
             var stockResult = await cjClient.GetStockBySkuAsync(variant.VariantSku!);
-            var isAvailableUs = stockResult.Data?.Any(w => w.CountryCode.Contains("US")) ?? false;
-
-            if (!isAvailableUs)
+            var usStock = stockResult.Data.Where(w => w.CountryCode.Contains("US")).FirstOrDefault()?.CjInventoryNum ?? 0;
+            if (usStock == 0)
             {
                 Log.Information($"Reject sku {variant.VariantSku} not available in US");
                 return;
             }
+            // Check if there's stock in US warehouse
+            
 
             // Build DeepSeek input
             var deepSeekInput = DeepSeekInput.Build(productInfo.Data, variant);
@@ -188,7 +189,7 @@ public class CleanSkuUseCase
             }
 
             // Save to database
-            await SaveValidatedSku(scopeFactory, variant, aiResult,ebayCategoryId);
+            await SaveValidatedSku(scopeFactory, variant, aiResult,ebayCategoryId, usStock);
         }
         // Catch database exception first
         catch (DbUpdateException ex)
@@ -219,7 +220,7 @@ public class CleanSkuUseCase
         }
     }
 
-    private static async Task SaveValidatedSku(IServiceScopeFactory scopeFactory,CjVariant variant, AiEnrichmentResult aiResult,int ebayCategoryId)
+    private static async Task SaveValidatedSku(IServiceScopeFactory scopeFactory,CjVariant variant, AiEnrichmentResult aiResult,int ebayCategoryId, int usStock)
     {
         var itemSpecifics = aiResult.RequiredFields.Concat(aiResult.RecommendedFields).ToDictionary(x => x.Key, x => x.Value);
         var skuEntity = new Sku
@@ -232,7 +233,8 @@ public class CleanSkuUseCase
             ItemSpecifics = JsonConvert.SerializeObject(itemSpecifics),
             SellPrice = aiResult.Sellprice,
             SkuStatus = SkuStatuses.Pending,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            avilableInventory = usStock,
         };
         // Add to Sku table
         try

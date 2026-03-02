@@ -138,10 +138,35 @@ class Program
                 }
                 break;
             case "test":
+                List<int> skuId = [];
+                CJApiClient cjClient = null;
+                using (var scope = host.Services.CreateScope())
+                {
+                    cjClient = scope.ServiceProvider.GetRequiredService<CJApiClient>();
+                }
                 using (var scope = host.Services.CreateScope())
                 {
 
+                    var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    skuId = await appDbContext.Skus
+                    .Where(sku => sku.SkuStatus == SkuStatuses.Pending)
+                    .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
+                    .Select(s => s.Id)
+                    .ToListAsync();
                 }
+                    foreach (var id in skuId)
+                    {
+                    using (var scope = host.Services.CreateScope())
+                    {
+                        var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                        var sku = await appDbContext.Skus.FindAsync(id);
+                        var stockResult = await cjClient.GetStockBySkuAsync(sku.SkuCode!);
+                        var cjInventory = stockResult.Data.Where(w => w.CountryCode.Contains("US")).FirstOrDefault().CjInventoryNum ?? 0;
+                        sku.avilableInventory = cjInventory;
+                        await appDbContext.SaveChangesAsync();                 
+                        }                   
+                    }
+                
                 break;
         }
 
