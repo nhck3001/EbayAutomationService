@@ -110,7 +110,7 @@ class Program
                 break;
 
 
-            case "createinventoryitem":
+            case "createinventory":
                 Log.Information("Start process sku from PENDING -> create ebay InventoryItem");
                 using (var scope = host.Services.CreateScope())
                 {

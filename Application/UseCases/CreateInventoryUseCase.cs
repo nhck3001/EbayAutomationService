@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
+using Npgsql;
 using Serilog;
 
 public class CreateInventoryUseCase
@@ -52,7 +53,7 @@ public class CreateInventoryUseCase
             var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var sku = await appDbContext.Skus.FindAsync(skuId);
             // Log process
-            Log.Information($"Trying to create an offer object for skuId {sku.SkuCode}");
+            Log.Information($"Trying to create an InventoryItem for skuId {sku.SkuCode}");
             var itemSpecifics = JsonConvert.DeserializeObject<Dictionary<string, string>>(sku.ItemSpecifics)!.ToDictionary(kvp => kvp.Key, kvp => new List<string> { kvp.Value });
             var result = await _ebayInventoryApiClient.CreateOrUpdateInventoryItem(
                                 sku: sku.SkuCode,
@@ -67,11 +68,9 @@ public class CreateInventoryUseCase
             {
                 case OperationOutcome.Success:
                     sku.SkuStatus = SkuStatuses.InventoryCreatedid;
-                    Log.Information($"Created/Updated inventoryItem successfully for {sku.SkuCode}");
                     break;
                 case OperationOutcome.AlreadyExists:
                     sku.SkuStatus = SkuStatuses.InventoryCreatedid;
-                    Log.Information($"Created/Updated inventoryItem successfully for {sku.SkuCode}");    
                     break;
 
                 case OperationOutcome.InvalidData:
@@ -83,7 +82,34 @@ public class CreateInventoryUseCase
                     Log.Information($"Temporary failure for {sku.SkuCode}. Will retry later.");
                     return; // DO NOT change status
             }
-            await appDbContext.SaveChangesAsync();
+            try
+            {
+                // Add to the new Inventory table
+                if (result.Outcome == OperationOutcome.Success || result.Outcome == OperationOutcome.AlreadyExists)
+                {
+                    var inventoryEntity = new InventoryItem
+                    {
+                        SkuId = sku.Id,
+                        Status = InventoryStatus.Pending,
+                        CreatedAt = DateTime.UtcNow,
+                        AvailableInventory = sku.availableInventory,
+                    };
+                    appDbContext.InventoryItems.Add(inventoryEntity);
+                }
+                await appDbContext.SaveChangesAsync();
+                Log.Information($"Created InventoryItem {sku.SkuCode} successfully");
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
+            {
+                Log.Information($"Duplicate SKU {sku.SkuCode} - skipping");
+                return;
+            }
+
+            catch (DbUpdateException ex)
+            {
+                Log.Warning(ex.Message);
+                throw;
+            }
         }
     }
 }

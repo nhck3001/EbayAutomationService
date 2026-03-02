@@ -37,6 +37,5 @@ public class SkuConfiguration : IEntityTypeConfiguration<Sku>
         builder.HasIndex(x => x.SkuStatus);
         // Regular index on CreatedAt - speeds up date-based queries and sorting by creation time
         builder.HasIndex(x => x.CreatedAt);
-        builder.HasAlternateKey(x => x.SkuCode);
     }
 }

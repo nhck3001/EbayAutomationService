@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EbayAutomationService.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260302200317_AddColumnInventoryTable")]
+    partial class AddColumnInventoryTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -96,16 +99,26 @@ namespace EbayAutomationService.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<int>("SkuId")
+                    b.Property<int>("Ebay_Category_Id")
                         .HasColumnType("integer");
+
+                    b.Property<decimal>("SellPrice")
+                        .HasColumnType("numeric");
+
+                    b.Property<string>("SkuCode")
+                        .IsRequired()
+                        .HasColumnType("text");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int?>("skuId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("SkuId");
+                    b.HasIndex("skuId");
 
                     b.ToTable("InventoryItems");
                 });
@@ -214,6 +227,8 @@ namespace EbayAutomationService.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasAlternateKey("SkuCode");
+
                     b.HasIndex("CreatedAt");
 
                     b.HasIndex("SkuCode")
@@ -240,9 +255,7 @@ namespace EbayAutomationService.Migrations
                 {
                     b.HasOne("Sku", "sku")
                         .WithMany()
-                        .HasForeignKey("SkuId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("skuId");
 
                     b.Navigation("sku");
                 });
