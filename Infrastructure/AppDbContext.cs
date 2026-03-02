@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<DirtySku> DirtySkus => Set<DirtySku>();
     public DbSet<Sku> Skus => Set<Sku>();
+    public DbSet<InventoryItem> InventoryItems { get; set; }
     public DbSet<Listing> Listings => Set<Listing>();
 
     // This function applies all the configuration that has been built 

@@ -35,11 +35,6 @@ public class SkuConfiguration : IEntityTypeConfiguration<Sku>
         builder.HasIndex(x => x.SkuStatus);
         // Regular index on CreatedAt - speeds up date-based queries and sorting by creation time
         builder.HasIndex(x => x.CreatedAt);
-        // Configures one-to-one relationship between Sku and Listing entities
-        builder.HasOne(x => x.Listing)                    // Sku has one Listing
-            .WithOne(x => x.SkuEntity)                    // Listing has one SkuEntity
-            .HasForeignKey<Listing>(x => x.Sku)           // Foreign key is Listing.Sku property
-            .HasPrincipalKey<Sku>(x => x.SkuCode)         // References Sku.SkuCode (not the Id)
-            .OnDelete(DeleteBehavior.Cascade);            // If Sku is deleted, its related Listing is also deleted
+        builder.HasAlternateKey(x => x.SkuCode);
     }
 }
