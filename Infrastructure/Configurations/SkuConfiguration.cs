@@ -11,10 +11,10 @@ public class SkuConfiguration : IEntityTypeConfiguration<Sku>
         builder.HasKey(x => x.Id);
         // SKU Code - maps to 'sku' column, cannot be NULL
         builder.Property(x => x.SkuCode).HasColumnName("sku").IsRequired();
+        // Status flag - ENUM with default value of PENDING (not processed yet)
+        builder.Property(x => x.SkuStatus).HasColumnName("sku_status").HasDefaultValue(SkuStatuses.Pending);
         // Product Title - maps to 'title' column, cannot be NULL
         builder.Property(x => x.Title).HasColumnName("title").IsRequired();
-        // Product offerId - maps to 'offerId' column, can be null
-        builder.Property(x => x.OfferId).HasColumnName("offer_id");
         builder.Property(x => x.Ebay_Category_Id).HasColumnName("ebay_category_id");
 
         // Product Description - maps to 'description' column, cannot be NULL
@@ -25,8 +25,7 @@ public class SkuConfiguration : IEntityTypeConfiguration<Sku>
         builder.Property(x => x.ItemSpecifics).HasColumnName("item_specifics").HasColumnType("jsonb").IsRequired();
         // Sell Price - numeric with 10 total digits, 2 decimal places (e.g., 12345678.99), cannot be NULL
         builder.Property(x => x.SellPrice).HasColumnName("sell_price").HasColumnType("numeric(10,2)").IsRequired();
-        // Status flag - ENUM with default value of PENDING (not processed yet)
-        builder.Property(x => x.SkuStatus).HasColumnName("sku_status").HasDefaultValue(SkuStatuses.Pending);
+
         // Created At timestamp - defaults to current database time (NOW())
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
         // Product Description - maps to 'description' column, cannot be NULL

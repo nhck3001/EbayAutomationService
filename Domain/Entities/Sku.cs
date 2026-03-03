@@ -4,10 +4,11 @@ public class Sku
     public int Id { get; set; }
 
     public string SkuCode { get; set; } = null!;
+    public string SkuStatus { get; set; } = SkuStatuses.Pending;
+
     public string Title { get; set; } = null!;
 
     public int Ebay_Category_Id { get; set; }
-    public string? OfferId { get; set; } = null;
     public string Description { get; set; } = null!;
 
     public string[] ImageUrls { get; set; } = null!;
@@ -16,8 +17,6 @@ public class Sku
     public string ItemSpecifics { get; set; } = null!;
 
     public decimal SellPrice { get; set; }
-
-    public string SkuStatus { get; set; } = SkuStatuses.Pending;
     public DateTime CreatedAt { get; set; }
     public int availableInventory { get; set; }
 
@@ -27,10 +26,8 @@ public static class SkuStatuses
 {
     public const string Pending = "Pending";
     public const string InventoryCreatedid = "InventoryCreated";
-    public const string Rejected = "Rejected";
+    public const string Claimed = "Claimed"; // Claimed by worker
 
-    public const string OfferCreated = "OfferCreated";
-    public const string Published = "Published";
     public const string Failed = "Failed";
 
 }
