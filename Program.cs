@@ -115,7 +115,7 @@ class Program
                 using (var scope = host.Services.CreateScope())
                 {
                     var useCase = scope.ServiceProvider.GetRequiredService<CreateInventoryUseCase>();
-                    await useCase.ExecuteAsync();
+                    await useCase.ProcessBatchAsync();
                 }
                 break;
 

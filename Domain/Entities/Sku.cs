@@ -26,8 +26,6 @@ public static class SkuStatuses
 {
     public const string Pending = "Pending";
     public const string InventoryCreatedid = "InventoryCreated";
-    public const string Claimed = "Claimed"; // Claimed by worker
-
     public const string Failed = "Failed";
 
 }

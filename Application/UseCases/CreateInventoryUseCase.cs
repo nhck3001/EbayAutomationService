@@ -16,35 +16,31 @@ public class CreateInventoryUseCase
         _scopeFactory = scopeFactory;
         _ebayInventoryApiClient = ebayInventoryApiClient;
     }
-
-    public async Task ExecuteAsync()
+    // Process 1 batch of Pending Sku
+    public async Task ProcessBatchAsync()
     {
-        while (true)
+
+        List<int> penndingSkuIds = new List<int>();    
+        using (var scope = _scopeFactory.CreateScope())
         {
-            List<int> penndingSkuIds = new List<int>();    
-            using (var scope = _scopeFactory.CreateScope())
-            {
-                var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                penndingSkuIds = await appDbContext.Skus
-                .Where(sku => sku.SkuStatus == SkuStatuses.Pending)
-                .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
-                .Take(batchSize)
-                .Select(s => s.Id)
-                .ToListAsync();
-            }
-
-
-            if (penndingSkuIds.Count == 0)
-            {
-                Log.Information("No more pending SKUs.");
-                return;
-            }
-
-            foreach (var skuId in penndingSkuIds)
-            {
-                await ProcessSingle(skuId);
-            }
+            var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            penndingSkuIds = await appDbContext.Skus
+            .Where(sku => sku.SkuStatus == SkuStatuses.Pending)
+            .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
+            .Take(batchSize)
+            .Select(s => s.Id)
+            .ToListAsync();
         }
+        if (penndingSkuIds.Count == 0)
+        {
+            Log.Information("No more pending SKUs.");
+            return;
+        }
+        foreach (var skuId in penndingSkuIds)
+        {
+            await ProcessSingle(skuId);
+        }
+        
     }
     private async Task ProcessSingle(int skuId)
     {
@@ -52,9 +48,26 @@ public class CreateInventoryUseCase
         {
             var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var sku = await appDbContext.Skus.FindAsync(skuId);
+            if (sku == null)
+            {
+                Log.Warning("Sku {SkuId} not found.", skuId);
+                return;
+            }
             // Log process
             Log.Information($"Trying to create an InventoryItem for skuId {sku.SkuCode}");
-            var itemSpecifics = JsonConvert.DeserializeObject<Dictionary<string, string>>(sku.ItemSpecifics)!.ToDictionary(kvp => kvp.Key, kvp => new List<string> { kvp.Value });
+            Dictionary<string, List<string>>? itemSpecifics;
+            try
+            {
+                itemSpecifics = JsonConvert.DeserializeObject<Dictionary<string, string>>(sku.ItemSpecifics).ToDictionary(kvp => kvp.Key, kvp => new List<string> { kvp.Value });
+
+            }
+            catch (Exception ex)
+            {
+                Log.Warning("Invalid ItemSpecifics for {Sku}: {Error}", sku.SkuCode, ex.Message);
+                sku.SkuStatus = SkuStatuses.Failed;
+                await appDbContext.SaveChangesAsync();
+                return;
+            }
             var result = await _ebayInventoryApiClient.CreateOrUpdateInventoryItem(
                                 sku: sku.SkuCode,
                                 sku.Title,
@@ -66,13 +79,6 @@ public class CreateInventoryUseCase
 
             switch (result.Outcome)
             {
-                case OperationOutcome.Success:
-                    sku.SkuStatus = SkuStatuses.InventoryCreatedid;
-                    break;
-                case OperationOutcome.AlreadyExists:
-                    sku.SkuStatus = SkuStatuses.InventoryCreatedid;
-                    break;
-
                 case OperationOutcome.InvalidData:
                     sku.SkuStatus = SkuStatuses.Failed;
                     Log.Information($"SKU {sku.SkuCode} invalid: {result.RawMessage}");
@@ -82,29 +88,29 @@ public class CreateInventoryUseCase
                     Log.Information($"Temporary failure for {sku.SkuCode}. Will retry later.");
                     return; // DO NOT change status
             }
-            // All sku will be marked as processed even if not saved successfully
-            await appDbContext.SaveChangesAsync();
+
             try
             {
                 // Add to the new Inventory table
                 if (result.Outcome == OperationOutcome.Success || result.Outcome == OperationOutcome.AlreadyExists)
                 {
-                    var inventoryEntity = new InventoryItem
+                    sku.SkuStatus = SkuStatuses.InventoryCreatedid;
+                    var exists = await appDbContext.InventoryItems.AnyAsync(i => i.SkuId == sku.Id);
+                    // Check if sku alreadyy exist
+                    if (!exists)
                     {
-                        SkuId = sku.Id,
-                        Status = InventoryStatus.Pending,
-                        CreatedAt = DateTime.UtcNow,
-                        AvailableInventory = sku.availableInventory,
-                    };
-                    appDbContext.InventoryItems.Add(inventoryEntity);
+                        appDbContext.InventoryItems.Add(new InventoryItem
+                        {
+                            SkuId = sku.Id,
+                            Status = InventoryStatus.Pending,
+                            CreatedAt = DateTime.UtcNow,
+                            AvailableInventory = sku.availableInventory,
+                        });
+                    }
+                    await appDbContext.SaveChangesAsync();
+                    Log.Information($"Created InventoryItem {sku.SkuCode} successfully");
+
                 }
-                await appDbContext.SaveChangesAsync();
-                Log.Information($"Created InventoryItem {sku.SkuCode} successfully");
-            }
-            catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
-            {
-                Log.Information($"Duplicate SKU {sku.SkuCode} - skipping");
-                return;
             }
 
             catch (DbUpdateException ex)
