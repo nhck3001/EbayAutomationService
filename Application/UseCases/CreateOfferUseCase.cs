@@ -22,7 +22,7 @@ public class CreateOfferUseCase
         _ebayOfferApiClient = ebayOfferApiClient;
     }
 
-    public async Task ExecuteAsync(string ebayCategoryId)
+    public async Task ExecuteAsync()
     {
         int batchNumber = 0;
         while (true)
@@ -50,13 +50,13 @@ public class CreateOfferUseCase
 
             foreach (var inventoryId in inventoryItemIds)
             {
-                await ProcessSingle(inventoryId, ebayCategoryId);
+                await ProcessSingle(inventoryId);
             }
             // Update batch#
             batchNumber++;
         }
     }
-    private async Task ProcessSingle(int inventoryId, string ebayCategoryId)
+    private async Task ProcessSingle(int inventoryId)
     {
         using (var scope = _scopeFactory.CreateScope())
         {
@@ -67,7 +67,7 @@ public class CreateOfferUseCase
             var itemSpecifics = JsonConvert.DeserializeObject<Dictionary<string, string>>(inventoryItem.sku.ItemSpecifics)!.ToDictionary(kvp => kvp.Key, kvp => new List<string> { kvp.Value });
             var result = await _ebayOfferApiClient.CreateOffer(
                                                     sku: inventoryItem.sku.SkuCode,
-                                                    categoryId: ebayCategoryId,
+                                                    categoryId: inventoryItem.sku.Ebay_Category_Id.ToString(),
                                                     inventoryItem.sku.SellPrice,
                                                     "DEFAULT_LOCATION",
                                                     PAYMENT_POLICY_ID,
