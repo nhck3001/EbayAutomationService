@@ -10,14 +10,13 @@ public class ListingConfiguration : IEntityTypeConfiguration<Listing>
         // Set Id field as primary key
         builder.HasKey(x => x.Id);
         // Set Sku field to column sku
-        builder.Property(x => x.Sku).HasColumnName("sku").IsRequired();
-        // Set EbayItemId to column ebay_item_id
-        builder.Property(x => x.EbayItemId).HasColumnName("ebay_item_id").IsRequired();
-        // Set CreatedAt to column created_at.
+        builder.Property(x => x.listingId).HasColumnName("ListingId").IsRequired();
         builder.Property(x => x.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("NOW()");
         // Create index for sku
-        builder.HasIndex(x => x.Sku).IsUnique();
+        builder.HasIndex(x => x.listingId).IsUnique();
         // Create index for ebay_item_id
-        builder.HasIndex(x => x.EbayItemId).IsUnique();
+        builder.HasOne(x => x.Offer).WithOne()                                  
+                .HasForeignKey<Listing>(l => l.OfferId)
+                .OnDelete(DeleteBehavior.Cascade);    
     }
 }

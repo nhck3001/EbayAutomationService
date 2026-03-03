@@ -150,7 +150,7 @@ public class EbayOfferApiClient
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
     /// <exception cref="Exception"></exception>
-    public async Task<string> publishOffer(string offerId, string sku)
+    public async Task<OperationResult> publishOffer(string offerId)
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"https://api.ebay.com/sell/inventory/v1/offer/{offerId}/publish");
         // Set the content type, and content-language header for the content as required in the ebay doc
@@ -159,34 +159,25 @@ public class EbayOfferApiClient
         var responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
         if (response.IsSuccessStatusCode)
         {
-            Log.Information($"Publish offer {sku} successfully");
-            return SkuStatuses.Published;
+            Log.Information($"Publish offer {offerId} successfully");
+            return OperationResult.Success(value: responseJson["listingId"].Value<string>());
         }
         // Error handling
         var error = responseJson["errors"]!.FirstOrDefault();
 
         if (error?["errorId"].Value<int>() == 25002)
         {
-            if (error["message"].Value<string>().Contains("is too long") || // Fields are too long
+            if (error["message"].Value<string>().Contains("is too long") || // Fields are too long 
                 error["message"].Value<string>().Contains("Picture Policy") // Picture not meeting requirements
                 )
             {
-                Log.Information($"A field is too long. simply ignore for now {sku}");
-                return SkuStatuses.Failed;
+                return OperationResult.Invalid($"A field is too long. Failed {offerId}");
             }
-            else
-            {
-                
-            }
-            // Business logic. Log and then Ignore for now
-            Log.Warning($"Publish offer {sku} fail. {error?["errorId"]}. {error["message"].Value<string>()}");
-            return SkuStatuses.Failed;
         }
 
-        // Other errors, log and throw
-        Log.Warning($"Publish offer {sku} fail. {error?["errorId"]}. {error["message"].Value<string>()}");
-        return SkuStatuses.Failed;
-    }
+        // Other errors, log 
+        return OperationResult.Invalid($"Publish offer {offerId} fail. {error?["errorId"]}. {error["message"].Value<string>()}");  
+}
     /// <summary>
     /// Get all offers for a specified SKU. 
     /// </summary>

@@ -16,7 +16,7 @@ public class OfferItem
 public static class OfferStatus
 {
     public const string Pending = "Pending";
-    public const string OfferCreated = "OfferCreated";
+    public const string ListingCreated = "ListingCreated";
     public const string Failed = "Failed";
 
 }

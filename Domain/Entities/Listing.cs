@@ -3,11 +3,11 @@ public class Listing
 {
     public int Id { get; set; }
 
-    public string Sku { get; set; } = null!;
-    public string EbayItemId { get; set; } = null!;
+    public string listingId { get; set; } = null!;
+    public int OfferId { get; set; }
 
     public DateTime CreatedAt { get; set; }
 
     // Navigation
-    public Sku SkuEntity { get; set; } = null!;
+    public OfferItem Offer { get; set; } = null!;
 }

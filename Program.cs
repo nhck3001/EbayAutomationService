@@ -124,7 +124,7 @@ class Program
                 using (var scope = host.Services.CreateScope())
                 {
                     var useCase = scope.ServiceProvider.GetRequiredService<CreateOfferUseCase>();
-                    await useCase.ExecuteAsync("22656");
+                    await useCase.ExecuteAsync();
                 }
                 break;
 
