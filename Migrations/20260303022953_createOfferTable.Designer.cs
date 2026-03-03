@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EbayAutomationService.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260303022953_createOfferTable")]
+    partial class createOfferTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -91,36 +94,23 @@ namespace EbayAutomationService.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<int>("AvailableInventory")
-                        .HasColumnType("integer")
-                        .HasColumnName("AvailableInventory");
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("CreatedAt")
-                        .HasDefaultValueSql("NOW()");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("SkuId")
-                        .HasColumnType("integer")
-                        .HasColumnName("SkuId");
+                        .HasColumnType("integer");
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("text")
-                        .HasDefaultValue("Pending")
-                        .HasColumnName("Status");
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatedAt");
+                    b.HasIndex("SkuId");
 
-                    b.HasIndex("SkuId")
-                        .IsUnique();
-
-                    b.HasIndex("Status");
-
-                    b.ToTable("InventoryItems", (string)null);
+                    b.ToTable("InventoryItems");
                 });
 
             modelBuilder.Entity("Listing", b =>
@@ -161,62 +151,6 @@ namespace EbayAutomationService.Migrations
                     b.HasIndex("SkuEntityId");
 
                     b.ToTable("listings", (string)null);
-                });
-
-            modelBuilder.Entity("OfferItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("CreatedAt")
-                        .HasDefaultValueSql("NOW()");
-
-                    b.Property<int>("Ebay_Category_Id")
-                        .HasColumnType("integer")
-                        .HasColumnName("ebay_category_id");
-
-                    b.Property<int>("InventoryId")
-                        .HasColumnType("integer")
-                        .HasColumnName("InventoryId");
-
-                    b.Property<int>("OfferId")
-                        .HasColumnType("integer")
-                        .HasColumnName("OfferId");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("integer")
-                        .HasColumnName("Quantity");
-
-                    b.Property<decimal>("SellPrice")
-                        .HasColumnType("numeric(10,2)")
-                        .HasColumnName("SellPrice");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("text")
-                        .HasDefaultValue("Pending")
-                        .HasColumnName("Status");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("InventoryId")
-                        .IsUnique();
-
-                    b.HasIndex("OfferId")
-                        .IsUnique();
-
-                    b.HasIndex("Status");
-
-                    b.ToTable("Offers", (string)null);
                 });
 
             modelBuilder.Entity("Sku", b =>
@@ -308,8 +242,8 @@ namespace EbayAutomationService.Migrations
             modelBuilder.Entity("InventoryItem", b =>
                 {
                     b.HasOne("Sku", "sku")
-                        .WithOne()
-                        .HasForeignKey("InventoryItem", "SkuId")
+                        .WithMany()
+                        .HasForeignKey("SkuId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -325,17 +259,6 @@ namespace EbayAutomationService.Migrations
                         .IsRequired();
 
                     b.Navigation("SkuEntity");
-                });
-
-            modelBuilder.Entity("OfferItem", b =>
-                {
-                    b.HasOne("InventoryItem", "Inventory")
-                        .WithOne()
-                        .HasForeignKey("OfferItem", "InventoryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Inventory");
                 });
 
             modelBuilder.Entity("Category", b =>
