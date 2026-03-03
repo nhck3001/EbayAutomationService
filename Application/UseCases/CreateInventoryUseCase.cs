@@ -82,6 +82,8 @@ public class CreateInventoryUseCase
                     Log.Information($"Temporary failure for {sku.SkuCode}. Will retry later.");
                     return; // DO NOT change status
             }
+            // All sku will be marked as processed even if not saved successfully
+            await appDbContext.SaveChangesAsync();
             try
             {
                 // Add to the new Inventory table

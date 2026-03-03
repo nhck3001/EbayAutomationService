@@ -2,7 +2,7 @@
 public class OfferItem
 {
     public int Id { get; set; }
-    public int OfferId{ get; set; }
+    public string OfferId{ get; set; }
     public int InventoryId { get; set; } // FK to Inventory table
     public int Quantity { get; set; } 
     public int Ebay_Category_Id { get; set; }
