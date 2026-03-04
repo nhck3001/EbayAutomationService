@@ -127,7 +127,7 @@ public class CrawlerUseCase
         catch (CjDailyLimitException)
         {
             Log.Information("Daily limit reached. Throwing up to worker");
-            return (false, streakCount);
+            throw;
         }
         catch (Exception ex)
         {
