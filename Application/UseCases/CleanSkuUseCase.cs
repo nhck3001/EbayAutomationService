@@ -59,7 +59,7 @@ public class CleanSkuUseCase
                     {
                         var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                         dirtySkuIds = await appDbContext.DirtySkus
-                        .Where(sku => sku.Processed == false)
+                        .Where(sku => sku.Processed == false && sku.EbayCategoryId == int.Parse(categoryId))
                         .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
                         .Take(batchSize)
                         .Select(s => s.Id)
