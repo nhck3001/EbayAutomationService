@@ -47,11 +47,11 @@ public class CleanSkuUseCase
                 }
                 int batchNumber = 0;
                 bool hasMore = true;
-                Log.Information($"Clean category {categoryId}...");
+                Log.Information($"-----------------------Clean category {categoryId}-----------------------");
                 while (hasMore && (maxBatches == null || batchNumber < maxBatches))
                 {
                     batchNumber++;
-                    Log.Information($"Processing batch {batchNumber}...");
+                    Log.Information($"-----------------------Processing batch {batchNumber}-----------------------");
 
                     // Get next batch of unprocessed SKUs
                     List<int> dirtySkuIds = new List<int>();
