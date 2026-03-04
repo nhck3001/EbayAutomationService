@@ -20,41 +20,31 @@ public class PublishOfferUseCase
         _ebayOfferApiClient = ebayOfferApiClient;
     }
 
-    public async Task ExecuteAsync()
+    public async Task ProcessBatchAsync()
     {
-        int batchNumber = 0;
 
-        while (true)
+        List<int> offerItemIds;
+        using (var scope = _scopeFactory.CreateScope())
         {
-            Log.Information($"Processing PublishOffer batch {batchNumber}...");
-
-            List<int> offerItemIds;
-
-            using (var scope = _scopeFactory.CreateScope())
-            {
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-                offerItemIds = await db.OfferItems
-                    .Where(o => o.Status == OfferStatus.Pending)
-                    .OrderBy(o => o.Id)
-                    .Take(batchSize)
-                    .Select(o => o.Id)
-                    .ToListAsync();
-            }
-
-            if (offerItemIds.Count == 0)
-            {
-                Log.Information("No more offers to publish.");
-                return;
-            }
-
-            foreach (var offerItemId in offerItemIds)
-            {
-                await ProcessSingle(offerItemId);
-            }
-
-            batchNumber++;
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            offerItemIds = await db.OfferItems
+                .Where(o => o.Status == OfferStatus.Pending)
+                .OrderBy(o => o.Id)
+                .Take(batchSize)
+                .Select(o => o.Id)
+                .ToListAsync();
         }
+        if (offerItemIds.Count == 0)
+        {
+            Log.Information("No more offers to publish.");
+            return;
+        }
+        foreach (var offerItemId in offerItemIds)
+        {
+            await ProcessSingle(offerItemId);
+        }
+
+        
     }
 
     private async Task ProcessSingle(int offerItemId)
@@ -74,47 +64,38 @@ public class PublishOfferUseCase
 
             var result = await _ebayOfferApiClient.publishOffer(offerItem.OfferId);
 
-            switch (result.Outcome)
-            {
-                case OperationOutcome.Success:
-                    Log.Information($"Published successfully: {offerItem.OfferId}");
-                    offerItem.Status = OfferStatus.ListingCreated;
-                    break;
-
-                case OperationOutcome.AlreadyExists:
-                    Log.Information($"Listing already exists for offer {offerItem.OfferId}");
-                    offerItem.Status = OfferStatus.ListingCreated;
-                    break;
-
-                case OperationOutcome.InvalidData:
-                    Log.Information($"Publish failed for {offerItem.OfferId}. {result.RawMessage}");
-                    offerItem.Status = OfferStatus.Failed;
-                    break;
-
-                case OperationOutcome.RetryableFailure:
-                    Log.Information($"Temporary failure for {offerItem.OfferId}. Will retry.");
-                    return; // do NOT change status
-
-            }
-            await appDbContext.SaveChangesAsync();
             try
             {
+
                 // If publish succeeded, create Listing entity (1:1 model)
                 if (result.Outcome == OperationOutcome.Success || result.Outcome == OperationOutcome.AlreadyExists)
                 {
-                    var listingEntity = new Listing
+                    offerItem.Status = OfferStatus.ListingCreated;
+                    var exists = await appDbContext.Listings.AnyAsync(l => l.OfferId == offerItem.Id);
+                    if (!exists)
                     {
-                        listingId = result.Value, // eBay listingId
-                        OfferId = offerItem.Id,
-                        CreatedAt = DateTime.UtcNow
-                    };
-                    appDbContext.Listings.Add(listingEntity);
+                        var listingEntity = new Listing
+                        {
+                            listingId = result.Value, // eBay listingId
+                            OfferId = offerItem.Id,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        appDbContext.Listings.Add(listingEntity);        
+                    }
+                    Log.Information($"Published offer {offerItem.OfferId}");
                     await appDbContext.SaveChangesAsync();
+                }
+                else if (result.Outcome == OperationOutcome.InvalidData)
+                {
+                    offerItem.Status = OfferStatus.Failed;
+                    Log.Information($"Publish offer failed for {offerItem.OfferId}. {result.RawMessage}");
+                    await appDbContext.SaveChangesAsync();
+
                 }
             }
             catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
             {
-                Log.Information($"Duplicate listing {result.Value} - skipping");
+                Log.Information($" SKip duplicate listing {result.Value}");
                 return;
             }
             catch (DbUpdateException ex)

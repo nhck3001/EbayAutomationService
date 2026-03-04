@@ -70,7 +70,7 @@ public class CreateOfferUseCase
                 if (result.Outcome == OperationOutcome.Success || result.Outcome == OperationOutcome.AlreadyExists)
                 {
                     inventoryItem.Status = InventoryStatus.OfferCreated;
-                    var exists = await appDbContext.OfferItems.AnyAsync(i => i.InventoryId == inventoryItem.Id);
+                    var exists = await appDbContext.OfferItems.AnyAsync(o => o.InventoryId == inventoryItem.Id);
                     if (!exists)
                     {
                         var offerEntity = new OfferItem
