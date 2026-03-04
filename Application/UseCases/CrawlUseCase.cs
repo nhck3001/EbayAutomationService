@@ -25,26 +25,26 @@ public class CrawlerUseCase
         using (var scope = _scopeFactory.CreateScope())
         {
             var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            categoryIds = await appDbContext.Categories.Select(row => row.EbayCategoryId).ToListAsync();
+            categoryIds = await appDbContext.Categories.OrderBy(c => c.EbayCategoryId).Select(row => row.EbayCategoryId).ToListAsync();
 
             // Loop through each categoryId
             foreach (var categoryId in categoryIds)
             {
-                List<string> keyWords = null;
-                keyWords = await appDbContext.Categories.Where(c => c.EbayCategoryId == categoryId).Select(c => c.Keyword).FirstOrDefaultAsync();
-
-                Log.Information($"-----------------------Looping category {categoryId}-----------------------");
+                var category = await appDbContext.Categories.Where(c => c.EbayCategoryId == categoryId).FirstOrDefaultAsync();
+                var isPopulated = category.IsPopulated;
+                Log.Information($"-----------------------Looping category {categoryId}. IS POPULATED {isPopulated}-----------------------");
                 var filterFunction = _crawlHelper.GetFilter(categoryId);
                 // Querry keyword by keyword
-                foreach (var keyWord in keyWords)
+                foreach (var keyWord in category.Keyword)
                 {
                     Log.Information($"-----------------------Looping keyword {keyWord}-----------------------");
-
+                    // If 15 duplciates in a row, skip keyword
+                    int streakCount = 0;
                     for (int currentPage = 1; currentPage <= maxPages; currentPage++)
                     {
                         try
                         {
-                            var response = await _cjApiClient.GetCjProductListAsync(keyWord, currentPage, pageSize, addMarkStatus: 1);
+                            var response = await _cjApiClient.GetCjProductListAsync(keyWord, currentPage, pageSize, addMarkStatus: 1, isPopulated);
 
                             if (response?.Data?.Content[0]?.ProductList == null || response.Data.Content[0].ProductList.Count == 0)
                             {
@@ -56,11 +56,30 @@ public class CrawlerUseCase
                             {
                                 if (filterFunction(product.NameEn))
                                 {
-                                    await SaveDirtySkuAsync(product.Sku, categoryId);
+                                    var success = await SaveDirtySkuAsync(product.Sku, categoryId);
+                                    // Reset counter
+                                    if (success)
+                                    {
+                                        streakCount = 0;
+                                    }
+                                    else
+                                    {
+                                        streakCount++;
+                                        if (streakCount == 15)
+                                        {
+                                            Log.Information("15 consecutive duplicates for keyword {Keyword}. Skipping remaining pages.", keyWord);
+                                            break;
+                                        }
+                                    }
                                 }
                             }
+                            // skip remaining page will go to here. Now break 1 more time 
+                            if (streakCount == 15)
+                            {
+                                break;
+                            }           
                         }
-                        catch (CjRateLimitException cjEx)
+                        catch (CjDailyLimitException cjEx)
                         {
                             Log.Information($"Daily request for crawling reached. Exit gracefully");
                             return;
@@ -71,20 +90,26 @@ public class CrawlerUseCase
                         }
                     }
                 }
+                // After looping through all keyword in category, mark as populated if not
+                if (category.IsPopulated == false)
+                {
+                    category.IsPopulated = true;
+                    await appDbContext.SaveChangesAsync();        
+                }
                 Log.Information($"Finish all keywords for category {categoryId}");
             }
         }
     }
 
 
-    private async Task SaveDirtySkuAsync(string sku, int categoryId)
+    private async Task<bool> SaveDirtySkuAsync(string sku, int categoryId)
     {
 
         try
         {
             using (var scope = _scopeFactory.CreateScope())
             {
-            
+
                 var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 var exists = await appDbContext.DirtySkus.AnyAsync(d => d.Sku == sku);
                 if (!exists)
@@ -98,9 +123,10 @@ public class CrawlerUseCase
                     appDbContext.DirtySkus.Add(dirtySku);
                     await appDbContext.SaveChangesAsync();
                     Log.Information($"Save dirtysku {sku} successfully");
-                    return;
+                    return true;
                 }
                 Log.Information($"Skip duplicate sku");
+                return false;
             }
         }
 
@@ -111,10 +137,11 @@ public class CrawlerUseCase
             if (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
             {
                 Log.Information("Duplicate key. Move on");
+                return false;
             }
             else
             {
-                Log.Information($"{ex.InnerException.Message}");   
+                Log.Information($"{ex.InnerException.Message}");
                 Log.Information($"{ex.InnerException.Data}");
                 throw;
             }

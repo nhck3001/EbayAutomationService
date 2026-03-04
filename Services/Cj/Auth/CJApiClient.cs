@@ -137,8 +137,22 @@ public class CJApiClient
     }
     // By Default, Loop through 50 page, 50 products each page to LOOK for PIDs only
 
-    public async Task<CjProductListV2Response> GetCjProductListAsync(string keyword, int page, int size, int addMarkStatus)
+    public async Task<CjProductListV2Response> GetCjProductListAsync(string keyword, int page, int size, int addMarkStatus, bool isPopulated)
     {
+        string timeFilter = "";
+        // If proudct is already populated, look for product that was added from the previous day only
+        if (isPopulated)
+        {
+            // Yesterday (UTC)
+            var yesterday = DateTime.UtcNow.Date.AddDays(-1);
+            var startOfYesterday = yesterday;
+            var endOfYesterday = yesterday.AddDays(1).AddMilliseconds(-1);
+
+            long timeStart = new DateTimeOffset(startOfYesterday).ToUnixTimeMilliseconds();
+            long timeEnd = new DateTimeOffset(endOfYesterday).ToUnixTimeMilliseconds();
+
+            timeFilter = $"timeStart={timeStart}&timeEnd={timeEnd}&";
+        }
         try
         {
             var response = await GetAsync<CjProductListV2Response>($"product/listV2?" +
@@ -148,7 +162,8 @@ public class CJApiClient
                                                    $"addMarkStatus={addMarkStatus}&" +
                                                    $"size={size}&" +
                                                    "verifiedWarehouse=1&" +
-                                                   "startWarehouseInventory=20&"
+                                                   "startWarehouseInventory=20&"+
+                                                   timeFilter
                                                    );
             return response;
 

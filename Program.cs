@@ -80,6 +80,7 @@ class Program
             .Build();
 
         if (args.Length > 0)
+
         {
 
             var job = args[0].ToLower();
@@ -151,8 +152,12 @@ class Program
                     break;
             }
         }
-        // If no args → run workers
-        await host.RunAsync();
+        else
+        {
+            // If no args → run workers
+            await host.RunAsync();            
+        }
+
     }
 
 }
