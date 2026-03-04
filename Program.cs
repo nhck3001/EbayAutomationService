@@ -74,6 +74,7 @@ class Program
                 services.AddScoped<CleanSkuUseCase>();
                 services.AddScoped<PublishOfferUseCase>();
                 services.AddScoped<CJRateLimiter>();
+                services.AddScoped<CrawlHelper>();
                 services.AddHostedService<CreateInventoryWorker>();
             })
             .Build();
@@ -128,10 +129,17 @@ class Program
                     {
                         var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
                         var publishOfferUseCase = scope.ServiceProvider.GetRequiredService<PublishOfferUseCase>();
-                        await publishOfferUseCase.ExecuteAsync();
+                        await publishOfferUseCase.ProcessBatchAsync();
                     }
                     break;
                 case "test":
+                    using (var scope = host.Services.CreateScope())
+                    {
+                        var ebayCategoryClient = scope.ServiceProvider.GetRequiredService<EbayCategoryService>();
+                        var crawlHelper = scope.ServiceProvider.GetRequiredService<CrawlHelper>();
+                        var x = await ebayCategoryClient.getCompleteCategoryTree();
+                        var z = EbayCategoryNode.GetSiblingLeafCategories(x, "43506");
+                    }
                     break;
             }
         }
@@ -141,6 +149,17 @@ class Program
 
 }
 
+// Hooks and Hangers 36024
+// Magazine Racks 38233
+// Umbrella Stands 40620
+// Closet Organizer 43503
+// Storage Bags 43504
+// Clothes Hanger 11673
+// Drawer Liners 122772
+// Storage Units 122954
+// Storage Bins and Baskets 159898
+// Storage Boxes 159897
+// Garment Racks 166325
 
     
 
