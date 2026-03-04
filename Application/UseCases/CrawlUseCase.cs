@@ -17,8 +17,9 @@ public class CrawlerUseCase
         _cjApiClient = cjApiClient;
         _crawlHelper = crawlHelper;
     }
-
-    public async Task CrawlProductsAsync()
+    // Get akk the category Ids
+    // Process each category
+    public async Task ProcessBatchAsync()
     {
         // Get the list of categorieIds
         List<int> categoryIds = null;
@@ -26,81 +27,114 @@ public class CrawlerUseCase
         {
             var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             categoryIds = await appDbContext.Categories.OrderBy(c => c.EbayCategoryId).Select(row => row.EbayCategoryId).ToListAsync();
-
-            // Loop through each categoryId
-            foreach (var categoryId in categoryIds)
-            {
-                var category = await appDbContext.Categories.Where(c => c.EbayCategoryId == categoryId).FirstOrDefaultAsync();
-                var isPopulated = category.IsPopulated;
-                Log.Information($"-----------------------Looping category {categoryId}. IS POPULATED {isPopulated}-----------------------");
-                var filterFunction = _crawlHelper.GetFilter(categoryId);
-                // Querry keyword by keyword
-                foreach (var keyWord in category.Keyword)
-                {
-                    Log.Information($"-----------------------Looping keyword {keyWord}-----------------------");
-                    // If 15 duplciates in a row, skip keyword
-                    int streakCount = 0;
-                    for (int currentPage = 1; currentPage <= maxPages; currentPage++)
-                    {
-                        try
-                        {
-                            var response = await _cjApiClient.GetCjProductListAsync(keyWord, currentPage, pageSize, addMarkStatus: 1, isPopulated);
-
-                            if (response?.Data?.Content[0]?.ProductList == null || response.Data.Content[0].ProductList.Count == 0)
-                            {
-                                Log.Information($"No more products found for {keyWord}");
-                                break;
-                            }
-
-                            foreach (var product in response.Data.Content[0].ProductList)
-                            {
-                                if (filterFunction(product.NameEn))
-                                {
-                                    var success = await SaveDirtySkuAsync(product.Sku, categoryId);
-                                    // Reset counter
-                                    if (success)
-                                    {
-                                        streakCount = 0;
-                                    }
-                                    else
-                                    {
-                                        streakCount++;
-                                        if (streakCount == 15)
-                                        {
-                                            Log.Information("15 consecutive duplicates for keyword {Keyword}. Skipping remaining pages.", keyWord);
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            // skip remaining page will go to here. Now break 1 more time 
-                            if (streakCount == 15)
-                            {
-                                break;
-                            }           
-                        }
-                        catch (CjDailyLimitException cjEx)
-                        {
-                            Log.Information($"Daily request for crawling reached. Exit gracefully");
-                            return;
-                        }
-                        catch (Exception ex)
-                        {
-                            Log.Warning(ex, "Error crawling page {Page}", currentPage);
-                        }
-                    }
-                }
-                // After looping through all keyword in category, mark as populated if not
-                if (category.IsPopulated == false)
-                {
-                    category.IsPopulated = true;
-                    await appDbContext.SaveChangesAsync();        
-                }
-                Log.Information($"Finish all keywords for category {categoryId}");
-            }
+        }
+        // Process category by category
+        foreach (var categoryId in categoryIds)
+        {
+            await ProcessCategoryAsync(categoryId);
         }
     }
+    // Process each keyword of each category
+    public async Task ProcessCategoryAsync(int categoryId)
+    {
+        List<string> categoryKeyword = [];
+        using (var scope = _scopeFactory.CreateScope())
+        {
+            var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var category = await appDbContext.Categories.Where(c => c.EbayCategoryId == categoryId).FirstOrDefaultAsync();
+            categoryKeyword = category.Keyword;
+            var isPopulated = category.IsPopulated;
+            Log.Information($"-----------------------Looping category {categoryId}. IS POPULATED {isPopulated}-----------------------");
+            // Process keyword by keyword
+            foreach (var keyword in categoryKeyword)
+            {
+                await ProcessKeywordAsync(keyword, categoryId, category.IsPopulated);
+            }
+            // After process all keywords for the first time, mark as populated
+            if (!category.IsPopulated)
+            {
+                category.IsPopulated = true;
+                await appDbContext.SaveChangesAsync();
+            }
+            Log.Information("Finished category {CategoryId}", categoryId);
+        }
 
+    }
+    // Process all retunred pages of each keyword
+    public async Task ProcessKeywordAsync(string keyword, int categoryId, bool isPopulated)
+    {
+        Log.Information($"-----------------------Looping keyword {keyword}-----------------------");
+        var filter = _crawlHelper.GetFilter(categoryId); // Get filter
+        // If 15 duplciates in a row, skip keyword
+        int streakCount = 0;
+        // Process page by page
+        for (int currentPage = 1; currentPage <= maxPages; currentPage++)
+        {
+
+            var (shouldContinue, updatedStreak) = await ProcessPageAsync(
+                keyword,
+                currentPage,
+                categoryId,
+                isPopulated,
+                filter,
+                streakCount);
+            streakCount = updatedStreak;
+            if (!shouldContinue)
+                // Will skip the current keyword
+                break;
+            
+        }
+    }
+    private async Task<(bool shouldContinue, int streakCount)> ProcessPageAsync(string keyword, int currentPage, int categoryId, bool isPopulated, Func<string, bool> filter, int streakCount)
+    {
+        try
+        {
+            var response = await _cjApiClient.GetCjProductListAsync(keyword, currentPage, pageSize, addMarkStatus: 1, isPopulated);
+            var products = response?.Data?.Content[0]?.ProductList;
+            // If no products returned => move on to next keyword
+            if (products == null || products.Count == 0)
+            {
+                Log.Information("No more products for {Keyword}", keyword);
+                return (false, streakCount); // Will skip the current keyword
+            }
+            // Process each product 1 by 1 
+            foreach (var product in products)
+            {
+                // Move on to the next product if can't pass filter
+                if (!filter(product.NameEn))
+                {
+                    continue;
+                }
+                // If pass, save it to DirtySkus
+                var success = await SaveDirtySkuAsync(product.Sku, categoryId);
+                // Reset counter
+                if (success)
+                {
+                    streakCount = 0;
+                }
+                else
+                {
+                    streakCount++;
+                    if (streakCount >= 15)
+                    {
+                        Log.Information("15 duplicates reached. Stopping.");
+                        return (false, streakCount); // Will skip the current keyword
+                    }
+                }
+            }
+            return (true, streakCount);
+        }
+        catch (CjDailyLimitException)
+        {
+            Log.Information("Daily limit reached.");
+            return (false, streakCount);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Error crawling page {Page}", currentPage);
+            return (false, streakCount);
+        } 
+    }
 
     private async Task<bool> SaveDirtySkuAsync(string sku, int categoryId)
     {

@@ -92,7 +92,7 @@ class Program
                     using (var scope = host.Services.CreateScope())
                     {
                         var crawlUseCase = scope.ServiceProvider.GetRequiredService<CrawlerUseCase>();
-                        await crawlUseCase.CrawlProductsAsync();
+                        await crawlUseCase.ProcessBatchAsync();
                     }
                     break;
 
