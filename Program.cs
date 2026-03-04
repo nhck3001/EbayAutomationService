@@ -137,8 +137,16 @@ class Program
                     {
                         var ebayCategoryClient = scope.ServiceProvider.GetRequiredService<EbayCategoryService>();
                         var crawlHelper = scope.ServiceProvider.GetRequiredService<CrawlHelper>();
-                        var x = await ebayCategoryClient.getCompleteCategoryTree();
-                        var z = EbayCategoryNode.GetSiblingLeafCategories(x, "43506");
+                        var x1 = await ebayCategoryClient.GetItemAspectForCategory("36024");
+                        var x3 = await ebayCategoryClient.GetItemAspectForCategory("40620");
+                        var x4 = await ebayCategoryClient.GetItemAspectForCategory("43503");
+                        var x5 = await ebayCategoryClient.GetItemAspectForCategory("43504");
+                        var x6 = await ebayCategoryClient.GetItemAspectForCategory("11673");
+                        var x7 = await ebayCategoryClient.GetItemAspectForCategory("122772");
+                        var x8 = await ebayCategoryClient.GetItemAspectForCategory("122954");
+                        var x9 = await ebayCategoryClient.GetItemAspectForCategory("159898");
+                        var x10 = await ebayCategoryClient.GetItemAspectForCategory("159897");
+                        var x11 = await ebayCategoryClient.GetItemAspectForCategory("166325");
                     }
                     break;
             }
@@ -150,7 +158,6 @@ class Program
 }
 
 // Hooks and Hangers 36024
-// Magazine Racks 38233
 // Umbrella Stands 40620
 // Closet Organizer 43503
 // Storage Bags 43504

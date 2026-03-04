@@ -13,7 +13,6 @@ public class CrawlHelper
             case 43506: return IsLikelyShoeOrganizer;
             case 22656: return IsLikelyCoatAndHatRack;
             case 36024: return IsLikelyHooksAndHangers;
-            case 38233: return IsLikelyMagazineRack;
             case 40620: return IsLikelyUmbrellaStand;
             case 43503: return IsLikelyClosetOrganizer;
             case 43504: return IsLikelyStorageBags;
@@ -103,23 +102,6 @@ public class CrawlHelper
             "metal",
             "wood",
             "mount");
-    }
-    public bool IsLikelyMagazineRack(string? name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return false;
-
-        name = name.ToLowerInvariant();
-
-        if (!name.Contains("magazine"))
-            return false;
-
-        return ContainsAny(name,
-            "rack",
-            "holder",
-            "organizer",
-            "wall",
-            "stand",
-            "storage");
     }
 
     public bool IsLikelyUmbrellaStand(string? name)

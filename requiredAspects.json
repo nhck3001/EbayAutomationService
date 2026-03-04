@@ -1,140 +1,261 @@
 {
-    "Categories": [
-      {
-        "EbayCategoryId": "43506",
-        "CategoryName": "Shoe Organizer", 
-        "RequiredAspects": [
-            {
-              "Name": "Brand",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Item Height",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Item Length",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Item Width",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Type",
-              "ValueType": "STRING"
-            }
-          ],
-          "RecommendedAspects": [
-            {
-              "Name": "Material",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Mounting",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Features",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Number of Shelves",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Capacity",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Assembly Required",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Item Weight",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Number of Items in Set",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Item Depth",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "MPN",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Model",
-              "ValueType": "STRING"
-            }
-          ]
-      },
-      {
-        "EbayCategoryId": "22656",
-        "CategoryName": "Coat & Hat Racks",  
-        "RequiredAspects": [
-            {
-              "Name": "Brand",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Type",
-              "ValueType": "STRING"
-            }
-          ],
-          "RecommendedAspects": [
-            {
-              "Name": "Material",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Mounting",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Hook Style",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Department",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Item Height",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Number of Hooks",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Item Width",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Assembly Required",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Item Length",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Item Weight",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "MPN",
-              "ValueType": "STRING"
-            },
-            {
-              "Name": "Model",
-              "ValueType": "STRING"
-            }
-          ]
-      }
-    ]
-  }
+  "Categories": [
+    {
+      "EbayCategoryId": "43506",
+      "CategoryName": "Shoe Organizer",
+      "RequiredAspects": [
+        { "Name": "Brand", "ValueType": "STRING" },
+        { "Name": "Item Height", "ValueType": "STRING" },
+        { "Name": "Item Length", "ValueType": "STRING" },
+        { "Name": "Item Width", "ValueType": "STRING" },
+        { "Name": "Type", "ValueType": "STRING" }
+      ],
+      "RecommendedAspects": [
+        { "Name": "Material", "ValueType": "STRING" },
+        { "Name": "Mounting", "ValueType": "STRING" },
+        { "Name": "Features", "ValueType": "STRING" },
+        { "Name": "Number of Shelves", "ValueType": "STRING" },
+        { "Name": "Capacity", "ValueType": "STRING" },
+        { "Name": "Assembly Required", "ValueType": "STRING" },
+        { "Name": "Item Weight", "ValueType": "STRING" },
+        { "Name": "Number of Items in Set", "ValueType": "STRING" },
+        { "Name": "Item Depth", "ValueType": "STRING" },
+        { "Name": "MPN", "ValueType": "STRING" },
+        { "Name": "Model", "ValueType": "STRING" }
+      ]
+    },
+    {
+      "EbayCategoryId": "22656",
+      "CategoryName": "Coat & Hat Racks",
+      "RequiredAspects": [
+        { "Name": "Brand", "ValueType": "STRING" },
+        { "Name": "Type", "ValueType": "STRING" }
+      ],
+      "RecommendedAspects": [
+        { "Name": "Material", "ValueType": "STRING" },
+        { "Name": "Mounting", "ValueType": "STRING" },
+        { "Name": "Hook Style", "ValueType": "STRING" },
+        { "Name": "Department", "ValueType": "STRING" },
+        { "Name": "Item Height", "ValueType": "STRING" },
+        { "Name": "Number of Hooks", "ValueType": "STRING" },
+        { "Name": "Item Width", "ValueType": "STRING" },
+        { "Name": "Assembly Required", "ValueType": "STRING" },
+        { "Name": "Item Length", "ValueType": "STRING" },
+        { "Name": "Item Weight", "ValueType": "STRING" },
+        { "Name": "MPN", "ValueType": "STRING" },
+        { "Name": "Model", "ValueType": "STRING" }
+      ]
+    },
+    {
+      "EbayCategoryId": "36024",
+      "CategoryName": "Hooks and Hangers",
+      "RequiredAspects": [
+        { "Name": "Brand", "ValueType": "STRING" },
+        { "Name": "Type", "ValueType": "STRING" }
+      ],
+      "RecommendedAspects": [
+        { "Name": "Material", "ValueType": "STRING" },
+        { "Name": "Mounting", "ValueType": "STRING" },
+        { "Name": "Number of Hooks", "ValueType": "STRING" },
+        { "Name": "Hook Style", "ValueType": "STRING" },
+        { "Name": "Item Weight", "ValueType": "STRING" },
+        { "Name": "Department", "ValueType": "STRING" },
+        { "Name": "Item Height", "ValueType": "STRING" },
+        { "Name": "Item Length", "ValueType": "STRING" },
+        { "Name": "Item Width", "ValueType": "STRING" },
+        { "Name": "MPN", "ValueType": "STRING" },
+        { "Name": "Model", "ValueType": "STRING" }
+      ]
+    },
+    {
+      "EbayCategoryId": "40620",
+      "CategoryName": "Umbrella Stands",
+      "RequiredAspects": [
+        { "Name": "Type", "ValueType": "STRING" },
+        { "Name": "Brand", "ValueType": "STRING" },
+        { "Name": "Item Height", "ValueType": "STRING" },
+        { "Name": "Item Length", "ValueType": "STRING" },
+        { "Name": "Item Width", "ValueType": "STRING" }
+      ],
+      "RecommendedAspects": [
+        { "Name": "Material", "ValueType": "STRING" },
+        { "Name": "Room", "ValueType": "STRING" },
+        { "Name": "Assembly Required", "ValueType": "STRING" },
+        { "Name": "Features", "ValueType": "STRING" },
+        { "Name": "Mounting", "ValueType": "STRING" },
+        { "Name": "Department", "ValueType": "STRING" },
+        { "Name": "Number of Items in Set", "ValueType": "STRING" },
+        { "Name": "Number of Shelves", "ValueType": "STRING" },
+        { "Name": "Capacity", "ValueType": "STRING" },
+        { "Name": "Item Depth", "ValueType": "STRING" },
+        { "Name": "Item Diameter", "ValueType": "STRING" },
+        { "Name": "Item Weight", "ValueType": "STRING" },
+        { "Name": "Model", "ValueType": "STRING" },
+        { "Name": "MPN", "ValueType": "STRING" }
+      ]
+    },
+    {
+      "EbayCategoryId": "43503",
+      "CategoryName": "Closet Organizer",
+      "RequiredAspects": [
+        { "Name": "Brand", "ValueType": "STRING" },
+        { "Name": "Item Height", "ValueType": "STRING" },
+        { "Name": "Item Length", "ValueType": "STRING" },
+        { "Name": "Item Width", "ValueType": "STRING" },
+        { "Name": "Type", "ValueType": "STRING" }
+      ],
+      "RecommendedAspects": [
+        { "Name": "Material", "ValueType": "STRING" },
+        { "Name": "Mounting", "ValueType": "STRING" },
+        { "Name": "Number of Shelves", "ValueType": "STRING" },
+        { "Name": "Features", "ValueType": "STRING" },
+        { "Name": "Assembly Required", "ValueType": "STRING" },
+        { "Name": "Item Weight", "ValueType": "STRING" },
+        { "Name": "Number of Items in Set", "ValueType": "STRING" },
+        { "Name": "Item Depth", "ValueType": "STRING" },
+        { "Name": "MPN", "ValueType": "STRING" },
+        { "Name": "Model", "ValueType": "STRING" }
+      ]
+    },
+    {
+      "EbayCategoryId": "43504",
+      "CategoryName": "Storage Bags",
+      "RequiredAspects": [
+        { "Name": "Brand", "ValueType": "STRING" },
+        { "Name": "Item Height", "ValueType": "STRING" },
+        { "Name": "Item Length", "ValueType": "STRING" },
+        { "Name": "Item Width", "ValueType": "STRING" },
+        { "Name": "Type", "ValueType": "STRING" }
+      ],
+      "RecommendedAspects": [
+        { "Name": "Material", "ValueType": "STRING" },
+        { "Name": "Size", "ValueType": "STRING" },
+        { "Name": "Color", "ValueType": "STRING" },
+        { "Name": "Features", "ValueType": "STRING" },
+        { "Name": "Model", "ValueType": "STRING" },
+        { "Name": "Capacity", "ValueType": "STRING" },
+        { "Name": "Item Weight", "ValueType": "STRING" },
+        { "Name": "Number of Items in Set", "ValueType": "STRING" },
+        { "Name": "Item Depth", "ValueType": "STRING" },
+        { "Name": "MPN", "ValueType": "STRING" }
+      ]
+    },
+    {
+      "EbayCategoryId": "11673",
+      "CategoryName": "Clothes Hanger",
+      "RequiredAspects": [],
+      "RecommendedAspects": [
+        { "Name": "Brand", "ValueType": "STRING" }
+      ]
+    },
+    {
+      "EbayCategoryId": "122772",
+      "CategoryName": "Drawer Liners",
+      "RequiredAspects": [
+        { "Name": "Brand", "ValueType": "STRING" },
+        { "Name": "Item Length", "ValueType": "STRING" },
+        { "Name": "Item Width", "ValueType": "STRING" },
+        { "Name": "Type", "ValueType": "STRING" },
+        { "Name": "Item Height", "ValueType": "STRING" }
+      ],
+      "RecommendedAspects": [
+        { "Name": "Material", "ValueType": "STRING" },
+        { "Name": "MPN", "ValueType": "STRING" }
+      ]
+    },
+    {
+      "EbayCategoryId": "122954",
+      "CategoryName": "Storage Units",
+      "RequiredAspects": [
+        { "Name": "Brand", "ValueType": "STRING" },
+        { "Name": "Item Width", "ValueType": "STRING" },
+        { "Name": "Type", "ValueType": "STRING" },
+        { "Name": "Item Height", "ValueType": "STRING" },
+        { "Name": "Item Length", "ValueType": "STRING" }
+      ],
+      "RecommendedAspects": [
+        { "Name": "Material", "ValueType": "STRING" },
+        { "Name": "Number of Shelves", "ValueType": "STRING" },
+        { "Name": "Room", "ValueType": "STRING" },
+        { "Name": "Features", "ValueType": "STRING" },
+        { "Name": "Number of Items in Set", "ValueType": "STRING" },
+        { "Name": "Mounting", "ValueType": "STRING" },
+        { "Name": "Department", "ValueType": "STRING" },
+        { "Name": "Assembly Required", "ValueType": "STRING" },
+        { "Name": "Capacity", "ValueType": "STRING" },
+        { "Name": "Item Depth", "ValueType": "STRING" },
+        { "Name": "Item Weight", "ValueType": "STRING" },
+        { "Name": "Model", "ValueType": "STRING" },
+        { "Name": "MPN", "ValueType": "STRING" }
+      ]
+    },
+    {
+      "EbayCategoryId": "159898",
+      "CategoryName": "Storage Bins and Baskets",
+      "RequiredAspects": [
+        { "Name": "Brand", "ValueType": "STRING" },
+        { "Name": "Item Height", "ValueType": "STRING" },
+        { "Name": "Item Length", "ValueType": "STRING" },
+        { "Name": "Item Width", "ValueType": "STRING" },
+        { "Name": "Type", "ValueType": "STRING" }
+      ],
+      "RecommendedAspects": [
+        { "Name": "Material", "ValueType": "STRING" },
+        { "Name": "Features", "ValueType": "STRING" },
+        { "Name": "Mounting", "ValueType": "STRING" },
+        { "Name": "Assembly Required", "ValueType": "STRING" },
+        { "Name": "Number of Items in Set", "ValueType": "STRING" },
+        { "Name": "Item Weight", "ValueType": "STRING" },
+        { "Name": "Capacity", "ValueType": "STRING" },
+        { "Name": "Item Depth", "ValueType": "STRING" },
+        { "Name": "MPN", "ValueType": "STRING" },
+        { "Name": "Model", "ValueType": "STRING" }
+      ]
+    },
+    {
+      "EbayCategoryId": "159897",
+      "CategoryName": "Storage Boxes",
+      "RequiredAspects": [
+        { "Name": "Brand", "ValueType": "STRING" },
+        { "Name": "Item Height", "ValueType": "STRING" },
+        { "Name": "Item Length", "ValueType": "STRING" },
+        { "Name": "Item Width", "ValueType": "STRING" },
+        { "Name": "Type", "ValueType": "STRING" }
+      ],
+      "RecommendedAspects": [
+        { "Name": "Material", "ValueType": "STRING" },
+        { "Name": "Color", "ValueType": "STRING" },
+        { "Name": "Size", "ValueType": "STRING" },
+        { "Name": "Features", "ValueType": "STRING" },
+        { "Name": "Mounting", "ValueType": "STRING" },
+        { "Name": "Assembly Required", "ValueType": "STRING" },
+        { "Name": "Item Weight", "ValueType": "STRING" },
+        { "Name": "Capacity", "ValueType": "STRING" },
+        { "Name": "Number of Items in Set", "ValueType": "STRING" },
+        { "Name": "Item Depth", "ValueType": "STRING" },
+        { "Name": "MPN", "ValueType": "STRING" },
+        { "Name": "Model", "ValueType": "STRING" }
+      ]
+    },
+    {
+      "EbayCategoryId": "166325",
+      "CategoryName": "Garment Racks",
+      "RequiredAspects": [
+        { "Name": "Brand", "ValueType": "STRING" },
+        { "Name": "Type", "ValueType": "STRING" }
+      ],
+      "RecommendedAspects": [
+        { "Name": "Material", "ValueType": "STRING" },
+        { "Name": "Mounting", "ValueType": "STRING" },
+        { "Name": "Department", "ValueType": "STRING" },
+        { "Name": "Item Width", "ValueType": "STRING" },
+        { "Name": "Item Height", "ValueType": "STRING" },
+        { "Name": "Assembly Required", "ValueType": "STRING" },
+        { "Name": "Item Length", "ValueType": "STRING" },
+        { "Name": "Item Weight", "ValueType": "STRING" },
+        { "Name": "MPN", "ValueType": "STRING" },
+        { "Name": "Model", "ValueType": "STRING" }
+      ]
+    }
+  ]
+}
