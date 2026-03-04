@@ -22,39 +22,29 @@ public class CreateOfferUseCase
         _ebayOfferApiClient = ebayOfferApiClient;
     }
 
-    public async Task ExecuteAsync()
+    public async Task ProcessBatchAsync()
     {
-        int batchNumber = 0;
-        while (true)
+
+        List<int> inventoryItemIds = new List<int>();
+        using (var scope = _scopeFactory.CreateScope())
         {
-            Log.Information($"Processing batch {batchNumber}...");
-
-            List<int> inventoryItemIds = new List<int>();
-            using (var scope = _scopeFactory.CreateScope())
-            {
-                var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                inventoryItemIds = await appDbContext.InventoryItems
-                .Where(inventory => inventory.Status == InventoryStatus.Pending)
-                .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
-                .Take(batchSize)
-                .Select(s => s.Id)
-                .ToListAsync();
-            }
-
-
-            if (inventoryItemIds.Count == 0)
-            {
-                Log.Information("No more InventoryCreated SKUs.");
-                return;
-            }
-
-            foreach (var inventoryId in inventoryItemIds)
-            {
-                await ProcessSingle(inventoryId);
-            }
-            // Update batch#
-            batchNumber++;
+            var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            inventoryItemIds = await appDbContext.InventoryItems
+            .Where(inventory => inventory.Status == InventoryStatus.Pending)
+            .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
+            .Take(batchSize)
+            .Select(s => s.Id)
+            .ToListAsync();
         }
+        if (inventoryItemIds.Count == 0)
+        {
+            Log.Information("No more InventoryCreated SKUs.");
+            return;
+        }
+        foreach (var inventoryId in inventoryItemIds)
+        {
+            await ProcessSingle(inventoryId);
+        }    
     }
     private async Task ProcessSingle(int inventoryId)
     {
@@ -63,7 +53,7 @@ public class CreateOfferUseCase
             var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var inventoryItem = await appDbContext.InventoryItems.Include(i => i.sku).FirstOrDefaultAsync(i => i.Id == inventoryId);
             // Log process
-            Log.Information($"Trying to create an offer object for skuId {inventoryItem.sku.SkuCode}");
+            Log.Information($"Creating an OfferItem for {inventoryItem.sku.SkuCode}");
             var itemSpecifics = JsonConvert.DeserializeObject<Dictionary<string, string>>(inventoryItem.sku.ItemSpecifics)!.ToDictionary(kvp => kvp.Key, kvp => new List<string> { kvp.Value });
             var result = await _ebayOfferApiClient.CreateOffer(
                                                     sku: inventoryItem.sku.SkuCode,
@@ -74,45 +64,37 @@ public class CreateOfferUseCase
                                                     FULFILLMENT_POLICY_ID,
                                                     RETURN_POLICY_ID);
 
-            switch (result.Outcome)
-            {
-                case OperationOutcome.Success:
-                    Log.Information($"Create offer successfully {inventoryItem.sku.SkuCode}");
-                    inventoryItem.Status = InventoryStatus.OfferCreated;
-                    break;
-                case OperationOutcome.AlreadyExists:
-                    Log.Information($"Offer already created. Using existing offerId {result.Value}");
-                    inventoryItem.Status = InventoryStatus.OfferCreated;
-                    break;
-
-                case OperationOutcome.InvalidData:
-                    Log.Information($"Offer creation failed for {inventoryItem.sku.SkuCode}. {result.RawMessage}");
-                    inventoryItem.Status = InventoryStatus.Failed;
-                    break;
-
-                case OperationOutcome.RetryableFailure:
-                    Log.Information("Temporary failure for {Sku}. Will retry later.", inventoryItem.sku.SkuCode);
-                    return; // DO NOT change status
-            }
             try
             {
                 // Add to the new Inventory table
                 if (result.Outcome == OperationOutcome.Success || result.Outcome == OperationOutcome.AlreadyExists)
                 {
-                    var offerEntity = new OfferItem
+                    inventoryItem.Status = InventoryStatus.OfferCreated;
+                    var exists = await appDbContext.OfferItems.AnyAsync(i => i.InventoryId == inventoryItem.Id);
+                    if (!exists)
                     {
-                        OfferId = result.Value,
-                        InventoryId = inventoryItem.Id,
-                        Quantity = 1,
-                        Ebay_Category_Id = inventoryItem.sku.Ebay_Category_Id,
-                        Status = InventoryStatus.Pending,
-                        CreatedAt = DateTime.UtcNow,
-                        SellPrice = inventoryItem.sku.SellPrice
-                    };
-                    appDbContext.OfferItems.Add(offerEntity);
+                        var offerEntity = new OfferItem
+                        {
+                            OfferId = result.Value,
+                            InventoryId = inventoryItem.Id,
+                            Quantity = 1,
+                            Ebay_Category_Id = inventoryItem.sku.Ebay_Category_Id,
+                            Status = OfferStatus.Pending,
+                            CreatedAt = DateTime.UtcNow,
+                            SellPrice = inventoryItem.sku.SellPrice
+                        };
+                        appDbContext.OfferItems.Add(offerEntity);
+                    }
+                    await appDbContext.SaveChangesAsync();
+                    Log.Information($"Created OfferItem {inventoryItem.sku.SkuCode} successfully");
                 }
-                await appDbContext.SaveChangesAsync();
-                Log.Information($"Created OfferItem {inventoryItem.sku.SkuCode} successfully");
+                else if (result.Outcome == OperationOutcome.InvalidData)
+                {
+                    inventoryItem.Status = InventoryStatus.Failed;
+                    await appDbContext.SaveChangesAsync();
+                    Log.Information($"Offer creation failed for {inventoryItem.sku.SkuCode}. {result.RawMessage}");
+                }
+
             }
             catch (DbUpdateException ex) when (ex.InnerException is PostgresException pgEx && pgEx.SqlState == "23505")
             {

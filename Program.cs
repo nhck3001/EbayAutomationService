@@ -74,7 +74,7 @@ class Program
                 services.AddScoped<CleanSkuUseCase>();
                 services.AddScoped<PublishOfferUseCase>();
                 services.AddScoped<CJRateLimiter>();
-                services.AddHostedService<InventoryCreationWorker>();
+                services.AddHostedService<CreateInventoryWorker>();
             })
             .Build();
 
@@ -118,7 +118,7 @@ class Program
                     using (var scope = host.Services.CreateScope())
                     {
                         var useCase = scope.ServiceProvider.GetRequiredService<CreateOfferUseCase>();
-                        await useCase.ExecuteAsync();
+                        await useCase.ProcessBatchAsync();
                     }
                     break;
 

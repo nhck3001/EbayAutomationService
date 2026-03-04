@@ -20,23 +20,23 @@ public class CreateInventoryUseCase
     public async Task ProcessBatchAsync()
     {
 
-        List<int> penndingSkuIds = new List<int>();    
+        List<int> pendingSkuIds = new List<int>();    
         using (var scope = _scopeFactory.CreateScope())
         {
             var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            penndingSkuIds = await appDbContext.Skus
+            pendingSkuIds = await appDbContext.Skus
             .Where(sku => sku.SkuStatus == SkuStatuses.Pending)
             .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
             .Take(batchSize)
             .Select(s => s.Id)
             .ToListAsync();
         }
-        if (penndingSkuIds.Count == 0)
+        if (pendingSkuIds.Count == 0)
         {
             Log.Information("No more pending SKUs.");
             return;
         }
-        foreach (var skuId in penndingSkuIds)
+        foreach (var skuId in pendingSkuIds)
         {
             await ProcessSingle(skuId);
         }
@@ -75,23 +75,10 @@ public class CreateInventoryUseCase
                                 itemSpecifics,
                                 sku.availableInventory);
 
-
-            switch (result.Outcome)
-            {
-                case OperationOutcome.InvalidData:
-                    sku.SkuStatus = SkuStatuses.Failed;
-                    Log.Information($"SKU {sku.SkuCode} invalid: {result.RawMessage}");
-                    break;
-
-                case OperationOutcome.RetryableFailure:
-                    Log.Information($"Temporary failure for {sku.SkuCode}. Will retry later.");
-                    return; // DO NOT change status
-            }
-
             try
             {
                 // Add to the new Inventory table
-                if (result.Outcome == OperationOutcome.Success )
+                if (result.Outcome == OperationOutcome.Success)
                 {
                     sku.SkuStatus = SkuStatuses.InventoryCreatedid;
                     var exists = await appDbContext.InventoryItems.AnyAsync(i => i.SkuId == sku.Id);
@@ -108,6 +95,12 @@ public class CreateInventoryUseCase
                     }
                     await appDbContext.SaveChangesAsync();
                     Log.Information($"Created InventoryItem {sku.SkuCode} successfully");
+                }
+                else if (result.Outcome == OperationOutcome.InvalidData)
+                {
+                    sku.SkuStatus = SkuStatuses.Failed;
+                    await appDbContext.SaveChangesAsync();
+                    Log.Information($"SKU {sku.SkuCode} invalid: {result.RawMessage}");
                 }
             }
 

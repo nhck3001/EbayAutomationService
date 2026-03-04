@@ -1,17 +1,17 @@
 using Microsoft.Extensions.Hosting;
 using Serilog;
 
-public class InventoryCreationWorker : BackgroundService
+public class CreateOfferWorker : BackgroundService
 {
-    private readonly CreateInventoryUseCase _processor;
+    private readonly CreateOfferUseCase _processor;
 
-    public InventoryCreationWorker(CreateInventoryUseCase processor)
+    public CreateOfferWorker(CreateOfferUseCase processor)
     {
         _processor = processor;
     }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        Log.Information("InventoryCreationWorker started.");
+        Log.Information("CreateOfferWorker started.");
 
         try
         {
@@ -29,11 +29,11 @@ public class InventoryCreationWorker : BackgroundService
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Unhandled exception in InventoryCreationWorker.");
+            Log.Error(ex, "Unhandled exception in CreateOfferWorker.");
         }
         finally
         {
-            Log.Information("InventoryCreationWorker stopping.");
+            Log.Information("CreateOfferWorker stopping.");
         }
     }
 }
