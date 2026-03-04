@@ -1,13 +1,14 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Serilog;
 
 public class PublishOfferWorker : BackgroundService
 {
-    private readonly PublishOfferUseCase _processor;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public PublishOfferWorker(PublishOfferUseCase processor)
+    public PublishOfferWorker(IServiceScopeFactory scopeFactory)
     {
-        _processor = processor;
+        _scopeFactory = scopeFactory;
     }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -18,7 +19,11 @@ public class PublishOfferWorker : BackgroundService
             // Worker will execute every 10 seconds
             while (!stoppingToken.IsCancellationRequested)
             {
-                await _processor.ProcessBatchAsync();
+                using (var scope = _scopeFactory.CreateScope())
+                { 
+                    var processor = scope.ServiceProvider.GetRequiredService<PublishOfferUseCase>();
+                    await processor.ProcessBatchAsync();
+                }
                 await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
             }
         }

@@ -15,6 +15,7 @@ public class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.Property(categoryObject => categoryObject.EbayCategoryId).HasColumnName("ebay_category_id").IsRequired();
         // Map Keyword field to column keyword. keyword can't be NULL
         builder.Property(categoryObject => categoryObject.Keyword).HasColumnName("keywords").IsRequired();
+        builder.Property(categoryObject => categoryObject.IsPopulated).HasColumnName("is_populated").IsRequired();
         // Make EbayCategoryId an alternate key to be referenced by DirtySku table
         builder.HasAlternateKey(x => x.EbayCategoryId);
         // Relationship between Category and DirtySkus is 1 to many
