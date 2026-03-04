@@ -54,7 +54,7 @@ public class CreateInventoryUseCase
                 return;
             }
             // Log process
-            Log.Information($"Trying to create an InventoryItem for skuId {sku.SkuCode}");
+            Log.Information("Creating InventoryItem for {SkuCode}", sku.SkuCode);            
             Dictionary<string, List<string>>? itemSpecifics;
             try
             {

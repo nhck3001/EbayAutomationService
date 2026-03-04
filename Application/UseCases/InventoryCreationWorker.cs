@@ -15,6 +15,7 @@ public class InventoryCreationWorker : BackgroundService
 
         try
         {
+            // Worker will execute every 10 seconds
             while (!stoppingToken.IsCancellationRequested)
             {
                 await _processor.ProcessBatchAsync();
