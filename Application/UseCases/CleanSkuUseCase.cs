@@ -10,16 +10,14 @@ using Serilog;
 public class CleanSkuUseCase
 {
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly EbayOfferApiClient _ebayOfferApiClient;
 
     private readonly CJApiClient _cjApiClient;
     private readonly DeepSeekClient _deepSeekClient;
     private static readonly int batchSize = 20;
     private static readonly int? maxBatches = null;
-    public CleanSkuUseCase(IServiceScopeFactory scopeFactory, EbayOfferApiClient ebayOfferApiClient, CJApiClient cjApiClient, DeepSeekClient deepSeekClient)
+    public CleanSkuUseCase(IServiceScopeFactory scopeFactory, CJApiClient cjApiClient, DeepSeekClient deepSeekClient)
     {
         _scopeFactory = scopeFactory;
-        _ebayOfferApiClient = ebayOfferApiClient;
         _cjApiClient = cjApiClient;
         _deepSeekClient = deepSeekClient;
 
@@ -82,7 +80,7 @@ public class CleanSkuUseCase
         catch (CjDailyLimitException)
         {
             Log.Information($"Cleaning sku and daily limit reached for cj. Exit gracefully");
-            return;
+            throw;
         }
     }
 

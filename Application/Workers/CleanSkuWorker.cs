@@ -27,6 +27,11 @@ public class CleanSkuWorker : BackgroundService
                 await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
             }
         }
+        catch (CjDailyLimitException)
+        {
+            Log.Warning("Daily limit reached. Stopping CleanSkuWorker.");
+            return; // exit worker cleanly
+        }
         // Allow Ctrl+c to shut down gracefully
         catch (OperationCanceledException)
         {

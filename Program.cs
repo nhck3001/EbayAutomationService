@@ -75,7 +75,12 @@ class Program
                 services.AddScoped<PublishOfferUseCase>();
                 services.AddScoped<CJRateLimiter>();
                 services.AddScoped<CrawlHelper>();
+                services.AddHostedService<CrawlWorker>();
                 services.AddHostedService<CreateInventoryWorker>();
+                services.AddHostedService<CleanSkuWorker>();
+                services.AddHostedService<CreateOfferWorker>();
+                services.AddHostedService<PublishOfferWorker>();
+
             })
             .Build();
 
