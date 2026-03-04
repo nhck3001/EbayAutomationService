@@ -37,8 +37,8 @@ public class CleanSkuUseCase
             }
             foreach (var categoryId in categoryIds)
             {
-                var requiredAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: categoryId, aspect: "RequiredAspects");
                 var recommendedAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: categoryId, aspect: "RecommendedAspects");
+                var requiredAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: categoryId, aspect: "RequiredAspects");
                 string categoryName = null;
                 using (var scope = _scopeFactory.CreateScope())
                 {

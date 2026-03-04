@@ -38,10 +38,18 @@ public static class Helper
         }
         // Get requiredAspects and recommendedAspects
         var aspects = chosenCategory[aspect] as JArray;
-        // Check if both exist
+        // Check if both exist. If not, return a json saying that aspect doesn't exist
         if (aspects == null || aspects.Count == 0)
         {
-            throw new Exception($"{aspect} section section missing or empty.");
+            if (aspect == "RequiredAspects")
+            {
+                return "REQUIRED ASPECTS: NONE";
+            }
+            // recommended aspects
+            else
+            {
+                return "RECOMMENDED ASPECTS: NONE";
+            }
         }
         // Start to form the output string. Required Aspects section
         var formattedAspects = new List<string>();
