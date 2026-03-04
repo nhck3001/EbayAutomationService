@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Hosting;
+using Serilog;
 
 public class InventoryCreationWorker : BackgroundService
 {
@@ -10,10 +11,28 @@ public class InventoryCreationWorker : BackgroundService
     }
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        Log.Information("InventoryCreationWorker started.");
+
+        try
         {
-            await _processor.ProcessBatchAsync();
-            await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await _processor.ProcessBatchAsync();
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            }
+        }
+        // Allow Ctrl+c to shut down gracefully
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Unhandled exception in InventoryCreationWorker.");
+        }
+        finally
+        {
+            Log.Information("InventoryCreationWorker stopping.");
         }
     }
 }

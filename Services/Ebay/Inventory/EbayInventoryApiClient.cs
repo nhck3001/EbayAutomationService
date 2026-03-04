@@ -51,6 +51,7 @@ public class EbayInventoryApiClient
         var url = $"https://api.ebay.com/sell/inventory/v1/inventory_item/{sku}";
         var request = new HttpRequestMessage(HttpMethod.Put, url);
         var response = await _api.SendAsync(request, jsonBody, true);
+
         // Success
         if (response.IsSuccessStatusCode)
         {

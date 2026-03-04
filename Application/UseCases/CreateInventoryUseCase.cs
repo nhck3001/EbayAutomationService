@@ -59,7 +59,6 @@ public class CreateInventoryUseCase
             try
             {
                 itemSpecifics = JsonConvert.DeserializeObject<Dictionary<string, string>>(sku.ItemSpecifics).ToDictionary(kvp => kvp.Key, kvp => new List<string> { kvp.Value });
-
             }
             catch (Exception ex)
             {
@@ -92,7 +91,7 @@ public class CreateInventoryUseCase
             try
             {
                 // Add to the new Inventory table
-                if (result.Outcome == OperationOutcome.Success || result.Outcome == OperationOutcome.AlreadyExists)
+                if (result.Outcome == OperationOutcome.Success )
                 {
                     sku.SkuStatus = SkuStatuses.InventoryCreatedid;
                     var exists = await appDbContext.InventoryItems.AnyAsync(i => i.SkuId == sku.Id);
@@ -109,7 +108,6 @@ public class CreateInventoryUseCase
                     }
                     await appDbContext.SaveChangesAsync();
                     Log.Information($"Created InventoryItem {sku.SkuCode} successfully");
-
                 }
             }
 
