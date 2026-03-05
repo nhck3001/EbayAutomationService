@@ -1,6 +1,7 @@
 {
   "Categories": [
     {
+      "ParentCategoryId": "43502",
       "EbayCategoryId": "43506",
       "CategoryName": "Shoe Organizer",
       "RequiredAspects": [
@@ -25,6 +26,7 @@
       ]
     },
     {
+      "ParentCategoryId": "43502",
       "EbayCategoryId": "22656",
       "CategoryName": "Coat & Hat Racks",
       "RequiredAspects": [
@@ -47,6 +49,7 @@
       ]
     },
     {
+      "ParentCategoryId": "43502",
       "EbayCategoryId": "36024",
       "CategoryName": "Hooks and Hangers",
       "RequiredAspects": [
@@ -68,6 +71,7 @@
       ]
     },
     {
+      "ParentCategoryId": "43502",
       "EbayCategoryId": "40620",
       "CategoryName": "Umbrella Stands",
       "RequiredAspects": [
@@ -95,6 +99,7 @@
       ]
     },
     {
+      "ParentCategoryId": "43502",
       "EbayCategoryId": "43503",
       "CategoryName": "Closet Organizer",
       "RequiredAspects": [
@@ -118,6 +123,7 @@
       ]
     },
     {
+      "ParentCategoryId": "43502",
       "EbayCategoryId": "43504",
       "CategoryName": "Storage Bags",
       "RequiredAspects": [
@@ -141,6 +147,7 @@
       ]
     },
     {
+      "ParentCategoryId": "43502",
       "EbayCategoryId": "11673",
       "CategoryName": "Clothes Hanger",
       "RequiredAspects": [],
@@ -149,6 +156,7 @@
       ]
     },
     {
+      "ParentCategoryId": "43502",
       "EbayCategoryId": "122772",
       "CategoryName": "Drawer Liners",
       "RequiredAspects": [
@@ -164,6 +172,7 @@
       ]
     },
     {
+      "ParentCategoryId": "43502",
       "EbayCategoryId": "122954",
       "CategoryName": "Storage Units",
       "RequiredAspects": [
@@ -190,6 +199,7 @@
       ]
     },
     {
+      "ParentCategoryId": "43502",
       "EbayCategoryId": "159898",
       "CategoryName": "Storage Bins and Baskets",
       "RequiredAspects": [
@@ -213,6 +223,7 @@
       ]
     },
     {
+      "ParentCategoryId": "43502",
       "EbayCategoryId": "159897",
       "CategoryName": "Storage Boxes",
       "RequiredAspects": [
@@ -238,6 +249,7 @@
       ]
     },
     {
+      "ParentCategoryId": "43502",
       "EbayCategoryId": "166325",
       "CategoryName": "Garment Racks",
       "RequiredAspects": [
