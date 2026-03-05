@@ -81,7 +81,7 @@ public class CleanSkuUseCase
         }
 
         Log.Information($"Fetching product info for sku {dirtySku.Sku}");
-        productInfo = await cjClient.GetProductDetailAsync( "CJSB2415367", isProductSku: true);
+        productInfo = await cjClient.GetProductDetailAsync( dirtySku.Sku, isProductSku: true);
         ebayCategoryId = dirtySku.EbayCategoryId;
         if (productInfo == null)
         {
@@ -108,6 +108,8 @@ public class CleanSkuUseCase
         {
             NullValueHandling = NullValueHandling.Ignore
         };
+        string deepSeekResult = null;
+
         try
         {
             // Check US availability
@@ -117,7 +119,7 @@ public class CleanSkuUseCase
             {
                 Log.Information($"Reject sku {variant.VariantSku} not available in US");
                 return;
-            }            
+            }
 
             // Build DeepSeek input
             var deepSeekInput = DeepSeekInput.Build(productInfo.Data, variant);
@@ -148,12 +150,13 @@ public class CleanSkuUseCase
             }
             // If reach here, there must be a suitable category
             // Re-set the ebay category based on result from deepseek
-            var finalCategoryId =  categoryResult.CategoryId;
+            var finalCategoryId = categoryResult.CategoryId;
             var recommendedAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: finalCategoryId, aspect: "RecommendedAspects");
             var requiredAspects = await Helper.LoadAspectsForPrompt(ebayCategoryId: finalCategoryId, aspect: "RequiredAspects");
             // Ask deepSeek to verify fields
-            var deepSeekPrompt = DeepSeekService.BuildPrompt(inputString,requiredAspects, recommendedAspects);
-            var deepSeekResult = await deepSeekClient.SendPrompt(deepSeekPrompt);
+            var deepSeekPrompt = DeepSeekService.BuildPrompt(inputString, requiredAspects, recommendedAspects);
+
+            deepSeekResult = await deepSeekClient.SendPrompt(deepSeekPrompt);
             var aiResult = JsonConvert.DeserializeObject<AiEnrichmentResult>(deepSeekResult);
             // If pass, save
             if (aiResult == null)
@@ -194,8 +197,7 @@ public class CleanSkuUseCase
         }
         catch (Exception ex)
         {
-
-            Log.Error($"Error processing variant {variant.VariantSku}: {ex.Message}");
+            Log.Error($"Error processing variant {variant.VariantSku}: {ex.Message} : deepseekResult {deepSeekResult}");
             return;
         }
     }

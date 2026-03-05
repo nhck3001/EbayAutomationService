@@ -175,8 +175,8 @@ If Stage 2 fails → return REJECT_ASPECT immediately.
     ""images"": [],
     ""type"": "",
     ""sellPrice"": "",
-    ""requiredFields"": "",
-    ""recommendedFields"": ""
+    ""requiredFields"": {{""AspectName"": ""value""}},
+    ""recommendedFields"": {{""AspectName"": ""value""}}
     }}
 
     ━━━━━━━━━━━━━━━━━━
