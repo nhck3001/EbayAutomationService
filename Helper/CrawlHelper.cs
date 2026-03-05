@@ -253,4 +253,52 @@ public class CrawlHelper
             "metal",
             "portable");
     }
+    public static string getCandidateCategories(string categoryId)
+    {
+        try
+        {
+            var json = File.ReadAllText("requiredAspects.json");
+            var root = JObject.Parse(json);
+
+            var categories = root["Categories"] as JArray;
+
+            if (categories == null)
+            {
+                Log.Error("Categories array missing in requiredAspects.json");
+                return "";
+            }
+
+            // find current category
+            var current = categories
+                .FirstOrDefault(c => c["EbayCategoryId"]?.ToString() == categoryId);
+
+            if (current == null)
+            {
+                Log.Error("Category {CategoryId} not found", categoryId);
+                return "";
+            }
+
+            var parentId = current["ParentCategoryId"]?.ToString();
+
+            var candidates = categories
+                .Where(c => c["ParentCategoryId"]?.ToString() == parentId)
+                .Select(c =>
+                {
+                    var id = c["EbayCategoryId"]?.ToString();
+                    var name = c["CategoryName"]?.ToString();
+
+                    if (id == categoryId)
+                        return $"{id} - {name} (current guess)";
+
+                    return $"{id} - {name}";
+                });
+
+            return string.Join("\n", candidates);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to build candidate categories");
+            return "";
+        }
+    }
 }
