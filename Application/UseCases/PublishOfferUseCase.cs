@@ -82,7 +82,7 @@ public class PublishOfferUseCase
                         };
                         appDbContext.Listings.Add(listingEntity);        
                     }
-                    Log.Information($"Published offer {offerItem.OfferId}");
+                    Log.Information($"Published offer {offerItem.OfferId} successfully");
                     await appDbContext.SaveChangesAsync();
                 }
                 else if (result.Outcome == OperationOutcome.InvalidData)

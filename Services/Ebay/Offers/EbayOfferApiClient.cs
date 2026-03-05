@@ -159,7 +159,6 @@ public class EbayOfferApiClient
         var responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
         if (response.IsSuccessStatusCode)
         {
-            Log.Information($"Publish offer {offerId} successfully");
             return OperationResult.Success(value: responseJson["listingId"].Value<string>());
         }
         // Error handling
