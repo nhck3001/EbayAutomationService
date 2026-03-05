@@ -142,7 +142,8 @@ class Program
                     using (var scope = host.Services.CreateScope())
                     {
                         var ebayCategoryClient = scope.ServiceProvider.GetRequiredService<EbayCategoryService>();
-                        var crawlHelper = scope.ServiceProvider.GetRequiredService<CrawlHelper>();
+                        var tree = await ebayCategoryClient.getCompleteCategoryTree();
+                        var x = EbayCategoryNode.GetSiblingLeafCategories(tree, "43506");
                         
                     }
                     break;

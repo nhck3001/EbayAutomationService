@@ -157,17 +157,31 @@ public static class Helper
     {
         var rootNodeJson = treeJson["rootCategoryNode"];
         var rootNode = EbayCategoryNode.ParseNode(rootNodeJson);
+
         var (node, parent) = FindById(rootNode, targetCategoryId);
+
         if (node == null || parent == null)
         {
             return new List<EbayCategoryNode>();
-   
         }
-        var siblings = parent.Children.Where(c => c.IsLeaf).ToList();
-        foreach (var cat in siblings)
+
+        var result = new List<EbayCategoryNode>();
+
+        // Add parent
+        result.Add(parent);
+
+        // Add leaf siblings
+        var siblings = parent.Children.Where(c => c.IsLeaf);
+        result.AddRange(siblings);
+
+        foreach (var cat in result)
         {
-            Console.WriteLine($"{cat.CategoryName} ({cat.CategoryId})");
+            if (cat.CategoryId == parent.CategoryId)
+                Console.WriteLine($"{cat.CategoryName.ToUpper()} ({cat.CategoryId})");
+            else
+                Console.WriteLine($"  └─ {cat.CategoryName} ({cat.CategoryId})");
         }
-        return siblings;
+
+        return result;
     }
-        }
+}
