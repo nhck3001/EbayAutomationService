@@ -4,6 +4,8 @@ public class AiEnrichmentResult
 {
     public bool Valid { get; set; }
     public string CategoryName { get; set; } = null!;
+    public string CategoryId { get; set; } = null!;
+
     public string Title { get; set; } = null!;
     public string Description { get; set; } = null!;
     public string Type { get; set; } = null!;
@@ -12,4 +14,10 @@ public class AiEnrichmentResult
     public Dictionary<string, string> RequiredFields { get; set; } = new();
     public Dictionary<string, string> RecommendedFields { get; set; } = new();
     public string Message { get; set; } = null;
+}
+public class CategorySelectionResult
+{
+    public bool Valid { get; set; }
+    public string CategoryId { get; set; }
+    public string RejectReason { get; set; }
 }

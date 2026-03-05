@@ -9,8 +9,54 @@ public class DeepSeekService
     {
         _ai = ai;
     }
+    public static string BuildCategoryPrompt(string name, string description, string candidateCategories)
+    {
+        return $@"
+        You are classifying products into eBay categories.
 
-public static string BuildPrompt(string input, string requiredAspectsJson, string recommendedAspectJson, string categoryName)
+        Choose the BEST matching category.
+
+        Rules:
+        • Choose ONLY from the provided list
+        • Classify based on PRODUCT FUNCTION (not keywords)
+        • Use the product name as the primary signal
+        • Use the product description only as supporting context
+        • If multiple categories match, choose the MOST SPECIFIC one.
+        • If none of the categories fit the product → reject
+
+        Candidate categories:
+        {candidateCategories}
+
+        ━━━━━━━━━━━━━━━━━━
+        OUTPUT (STRICT JSON ONLY)
+        ━━━━━━━━━━━━━━━━━━
+        Return ONLY valid JSON.
+        Do NOT include markdown.
+        Do NOT include commentary.
+
+        {{
+        ""valid"": true,
+        ""categoryId"": 123
+        }}
+
+        OR
+
+        {{
+        ""valid"": false,
+        ""rejectReason"": ""REJECT_CATEGORY""
+        }}
+
+        PRODUCT INPUT
+
+        Name:
+        {name}
+
+        Description:
+        {description}
+        ";
+    }
+
+public static string BuildPrompt(string input, string requiredAspectsJson, string recommendedAspectJson)
     {
         return $@"
     You are a strict eBay listing validator.
@@ -19,20 +65,7 @@ public static string BuildPrompt(string input, string requiredAspectsJson, strin
     Determine if this supplier variant can become a REAL eBay listing.
 
     ━━━━━━━━━━━━━━━━━━
-    STAGE 1 — CATEGORY CHECK ({categoryName} ONLY)
-    ━━━━━━━━━━━━━━━━━━
-
-    Target eBay Category:
-    {categoryName}
-
-    Determine whether the product  belongs in this category.
-    Return valid = true if the product functionality fit inside the category {categoryName}
-    Otherwise return valid = false with rejectReason = REJECT_CATEGORY.
-
-    If Stage 1 fails → return REJECT_CATEGORY immediately.
-
-    ━━━━━━━━━━━━━━━━━━
-    STAGE 2 — REQUIRED ITEM SPECIFICS
+    STAGE 1 — REQUIRED ITEM SPECIFICS
     ━━━━━━━━━━━━━━━━━━
 
     Required aspects: {requiredAspectsJson}
@@ -140,8 +173,8 @@ If Stage 2 fails → return REJECT_ASPECT immediately.
     ""title"": "",
     ""description"": "",
     ""images"": [],
-    ""type"", ""
-    ""sellPrice"","",
+    ""type"": "",
+    ""sellPrice"": "",
     ""requiredFields"": "",
     ""recommendedFields"": ""
     }}

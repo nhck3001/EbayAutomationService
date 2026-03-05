@@ -106,7 +106,7 @@ class Program
                     using (var scope = host.Services.CreateScope())
                     {
                         var CleanSkuUseCase = scope.ServiceProvider.GetRequiredService<CleanSkuUseCase>();
-                        await CleanSkuUseCase.ExecuteAsync();
+                        await CleanSkuUseCase.ProcessBatchAsync();
                     }
                     break;
 
