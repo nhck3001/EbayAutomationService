@@ -75,6 +75,7 @@ class Program
                 services.AddScoped<PublishOfferUseCase>();
                 services.AddScoped<CJRateLimiter>();
                 services.AddScoped<CrawlHelper>();
+                services.AddScoped<RefreshInventory>();
                 services.AddHostedService<CrawlWorker>();
                 services.AddHostedService<CreateInventoryWorker>();
                 services.AddHostedService<CleanSkuWorker>();
@@ -141,10 +142,8 @@ class Program
                 case "test":
                     using (var scope = host.Services.CreateScope())
                     {
-                        var ebayCategoryClient = scope.ServiceProvider.GetRequiredService<EbayCategoryService>();
-                        var tree = await ebayCategoryClient.getCompleteCategoryTree();
-                        var x = EbayCategoryNode.GetSiblingLeafCategories(tree, "43506");
-                        
+                        var CleanSkuUseCase = scope.ServiceProvider.GetRequiredService<RefreshInventory>();
+                        await CleanSkuUseCase.ProcessBatchAsync("CJJT245038001AZ");
                     }
                     break;
             }
@@ -152,11 +151,10 @@ class Program
         else
         {
             // If no args → run workers
-            await host.RunAsync();            
+            await host.RunAsync();
         }
 
     }
-
 }
 
 // Hooks and Hangers 36024
