@@ -24,7 +24,7 @@ public class PublishOfferWorker : BackgroundService
                     var processor = scope.ServiceProvider.GetRequiredService<PublishOfferUseCase>();
                     await processor.ProcessBatchAsync();
                 }
-                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(120), stoppingToken);
             }
         }
         // Allow Ctrl+c to shut down gracefully

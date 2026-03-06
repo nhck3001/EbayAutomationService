@@ -16,7 +16,7 @@ public class CleanSkuWorker : BackgroundService
 
         try
         {
-            // Worker will execute every 10 seconds
+            // Worker will execute every 5 second
             while (!stoppingToken.IsCancellationRequested)
             {
                 using (var scope = _scopeFactory.CreateScope())
@@ -24,7 +24,7 @@ public class CleanSkuWorker : BackgroundService
                     var processor = scope.ServiceProvider.GetRequiredService<CleanSkuUseCase>();
                     await processor.ProcessBatchAsync();
                 }
-                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
             }
         }
         catch (CjDailyLimitException)
