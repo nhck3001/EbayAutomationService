@@ -100,33 +100,8 @@ public class EbayOfferApiClient
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
     /// <exception cref="Exception"></exception>
-    public async Task updateOffer(string offerID, string fulfillmentPolicyId, string paymentPolicyId, string returnPolicyId, string merchantLocationKey)
+    public async Task updateOffer(string offerID, string jsonBody)
     {
-        var body = new
-        {
-            availableQuantity = 60,
-            categoryId = "30120",
-            listingDescription = "We need to put something here even though it's not necessary",
-            listingPolicies = new
-            {
-                fulfillmentPolicyId = fulfillmentPolicyId,
-                paymentPolicyId = paymentPolicyId,
-                returnPolicyId = returnPolicyId
-            },
-            pricingSummary = new
-            {
-                price = new
-                {
-                    currency = "USD",
-                    value = "260.00"
-                }
-            },
-            merchantLocationKey = merchantLocationKey,
-            listingDuration = "DAYS_30"
-        };
-        var jsonBody = JsonConvert.SerializeObject(body);
-
-
 
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, $"https://api.ebay.com/sell/inventory/v1/offer/{offerID}");
         var response = await _api.SendAsync(request, jsonBody, true);
@@ -184,7 +159,7 @@ public class EbayOfferApiClient
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
     /// <exception cref="Exception"></exception>
-    public async Task<string> getOffers(string sku)
+    public async Task<JToken> getOffers(string sku)
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/sell/inventory/v1/offer?sku={sku}");
         var response = await _api.SendAsync(request);
@@ -199,7 +174,7 @@ public class EbayOfferApiClient
                 response.StatusCode
             );
         }
-        var offerId = Newtonsoft.Json.Linq.JObject.Parse(responseJson)["offers"]?.ToString();
+        var offerId = Newtonsoft.Json.Linq.JObject.Parse(responseJson)["offers"].First;
         return offerId ?? throw new Exception("No offerId returned.");
     }
 

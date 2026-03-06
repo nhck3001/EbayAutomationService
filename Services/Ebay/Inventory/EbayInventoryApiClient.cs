@@ -86,7 +86,31 @@ public class EbayInventoryApiClient
         Log.Warning($"Create inventory for {sku} fail. {error?["errorId"]}: {error["message"]}.");
         return OperationResult.Invalid(message: $"{error["message"]}");
     }
+    /// <summary>
+    /// Retrieve a single inventory item by SKU
+    /// </summary>
+    /// <param name="sku"></param>
+    /// <returns>JObject representing the inventory item</returns>
+    /// <exception cref="HttpRequestException"></exception>
+    public async Task<JObject> GetSku(string sku)
+    {
+        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get,$"https://api.ebay.com/sell/inventory/v1/inventory_item/{sku}"
+        );
 
+        var response = await _api.SendAsync(request);
+        var json = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new HttpRequestException(
+                $"Failed to retrieve SKU {sku}. Status code {response.StatusCode}. Response: {json}",
+                null,
+                response.StatusCode
+            );
+        }
+
+        return JObject.Parse(json);
+    }
 
 
     // Get the number of Inventory Items that user has
