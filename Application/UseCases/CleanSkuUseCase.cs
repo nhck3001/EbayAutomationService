@@ -95,7 +95,7 @@ public class CleanSkuUseCase
         try
         {
             // Check US availability
-            var usStock = await GetUsStock(variant.VariantSku);
+            var usStock = await CjHelper.GetUsStock(variant.VariantSku!, cjClient);
             if (usStock == 0)
             {
                 Log.Information($"Reject {variant.VariantSku} not available in US");
@@ -220,14 +220,6 @@ public class CleanSkuUseCase
         sku.Processed = true;
 
         await context.SaveChangesAsync();
-    }
-    private  async Task<int> GetUsStock(string variantSku)
-    {
-        var stockResult = await _cjApiClient.GetStockBySkuAsync(variantSku);
-
-        return stockResult.Data
-            .FirstOrDefault(x => x.CountryCode.Contains("US"))
-            ?.CjInventoryNum ?? 0;
     }
 
     private async Task<CategorySelectionResult?> verifyCategory(DeepSeekInput input, int ebayCategoryId, string variantSku)
