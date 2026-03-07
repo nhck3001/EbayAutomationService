@@ -27,11 +27,11 @@ public class RefreshInventory
 
     // Right now, the function will take in an sku
     // In the future, will automatically trigger using webhook
-    public async Task ProcessBatchAsync(string sku)
+    public async Task ProcessBatchAsync(string sku, CancellationToken stoppingToken)
     {
         Log.Information($"Refresh Inventory offer {sku}. Checking US availability");
         // Check if product is available in the us
-        var usStock = await CjHelper.GetUsStock(sku, _cjApiClient);
+        var usStock = await CjHelper.GetUsStock(sku, _cjApiClient, stoppingToken);
 
         if (usStock == 0)
         {
@@ -50,7 +50,7 @@ public class RefreshInventory
                 var offerObject = await ebayOfferClient.getOffers(sku);
                 var inventoryItem = await ebayInventoryClient.GetSku(sku);
                 // Update quantity
-                offerObject["availableQuantity"] = 10;
+                offerObject["availableQuantity"] = 1;
                 // product description is required even if not changed
                 var productDescription = inventoryItem["product"]["description"];
                 offerObject["listingDescription"] = productDescription;

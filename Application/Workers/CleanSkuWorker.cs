@@ -22,7 +22,7 @@ public class CleanSkuWorker : BackgroundService
                 using (var scope = _scopeFactory.CreateScope())
                 {
                     var processor = scope.ServiceProvider.GetRequiredService<CleanSkuUseCase>();
-                    await processor.ProcessBatchAsync();
+                    await processor.ProcessBatchAsync(stoppingToken);
                 }
                 await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
             }

@@ -98,7 +98,7 @@ class Program
                     using (var scope = host.Services.CreateScope())
                     {
                         var crawlUseCase = scope.ServiceProvider.GetRequiredService<CrawlerUseCase>();
-                        await crawlUseCase.ProcessBatchAsync();
+                        await crawlUseCase.ProcessBatchAsync(CancellationToken.None);
                     }
                     break;
 
@@ -107,7 +107,7 @@ class Program
                     using (var scope = host.Services.CreateScope())
                     {
                         var CleanSkuUseCase = scope.ServiceProvider.GetRequiredService<CleanSkuUseCase>();
-                        await CleanSkuUseCase.ProcessBatchAsync();
+                        await CleanSkuUseCase.ProcessBatchAsync(CancellationToken.None);
                     }
                     break;
 
@@ -143,7 +143,7 @@ class Program
                     using (var scope = host.Services.CreateScope())
                     {
                         var CleanSkuUseCase = scope.ServiceProvider.GetRequiredService<RefreshInventory>();
-                        await CleanSkuUseCase.ProcessBatchAsync("CJJT245038001AZ");
+                        await CleanSkuUseCase.ProcessBatchAsync("CJJT245038001AZ",CancellationToken.None);
                     }
                     break;
             }

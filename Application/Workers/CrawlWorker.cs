@@ -22,7 +22,7 @@ public class CrawlWorker : BackgroundService
                 using (var scope = _scopeFactory.CreateScope())
                 {
                     var processor = scope.ServiceProvider.GetRequiredService<CrawlerUseCase>();
-                    await processor.ProcessBatchAsync();
+                    await processor.ProcessBatchAsync(stoppingToken);
                 }
                 await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
             }

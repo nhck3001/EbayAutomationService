@@ -19,23 +19,23 @@ public class CrawlerUseCase
     }
     // Get akk the category Ids
     // Process each category
-    public async Task ProcessBatchAsync()
+    public async Task ProcessBatchAsync(CancellationToken stoppingToken)
     {
         // Get the list of categorieIds
         List<int> categoryIds = null;
         using (var scope = _scopeFactory.CreateScope())
         {
             var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            categoryIds = await appDbContext.Categories.OrderBy(c => c.EbayCategoryId).Select(row => row.EbayCategoryId).ToListAsync();
+            categoryIds = await appDbContext.Categories.OrderBy(c => c.EbayCategoryId).Select(row => row.EbayCategoryId).ToListAsync(stoppingToken);
         }
         // Process category by category
         foreach (var categoryId in categoryIds)
         {
-            await ProcessCategoryAsync(categoryId);
+            await ProcessCategoryAsync(categoryId, stoppingToken);
         }
     }
     // Process each keyword of each category
-    public async Task ProcessCategoryAsync(int categoryId)
+    public async Task ProcessCategoryAsync(int categoryId,CancellationToken stoppingToken)
     {
         List<string> categoryKeyword = [];
         using (var scope = _scopeFactory.CreateScope())
@@ -48,7 +48,7 @@ public class CrawlerUseCase
             // Process keyword by keyword
             foreach (var keyword in categoryKeyword)
             {
-                await ProcessKeywordAsync(keyword, categoryId, category.IsPopulated);
+                await ProcessKeywordAsync(keyword, categoryId, category.IsPopulated, stoppingToken);
             }
             // After process all keywords for the first time, mark as populated
             if (!category.IsPopulated)
@@ -61,7 +61,7 @@ public class CrawlerUseCase
 
     }
     // Process all retunred pages of each keyword
-    public async Task ProcessKeywordAsync(string keyword, int categoryId, bool isPopulated)
+    public async Task ProcessKeywordAsync(string keyword, int categoryId, bool isPopulated,CancellationToken stoppingToken)
     {
         Log.Information($"-----------------------Looping keyword {keyword}-----------------------");
         var filter = _crawlHelper.GetFilter(categoryId); // Get filter
@@ -77,7 +77,7 @@ public class CrawlerUseCase
                 categoryId,
                 isPopulated,
                 filter,
-                streakCount);
+                streakCount,stoppingToken);
             streakCount = updatedStreak;
             if (!shouldContinue)
                 // Will skip the current keyword
@@ -85,11 +85,12 @@ public class CrawlerUseCase
             
         }
     }
-    private async Task<(bool shouldContinue, int streakCount)> ProcessPageAsync(string keyword, int currentPage, int categoryId, bool isPopulated, Func<string, bool> filter, int streakCount)
+    private async Task<(bool shouldContinue, int streakCount)> ProcessPageAsync(string keyword, int currentPage, int categoryId,
+        bool isPopulated, Func<string, bool> filter, int streakCount, CancellationToken stoppingToken)
     {
         try
         {
-            var response = await _cjApiClient.GetCjProductListAsync(keyword, currentPage, pageSize, addMarkStatus: 1, isPopulated);
+            var response = await _cjApiClient.GetCjProductListAsync(keyword, currentPage, pageSize, addMarkStatus: 1, isPopulated, stoppingToken);
             var products = response?.Data?.Content[0]?.ProductList;
             // If no products returned => move on to next keyword
             if (products == null || products.Count == 0)
@@ -106,7 +107,7 @@ public class CrawlerUseCase
                     continue;
                 }
                 // If pass, save it to DirtySkus
-                var success = await SaveDirtySkuAsync(product.Sku, categoryId);
+                var success = await SaveDirtySkuAsync(product.Sku, categoryId, stoppingToken);
                 // Reset counter
                 if (success)
                 {
@@ -136,7 +137,7 @@ public class CrawlerUseCase
         } 
     }
 
-    private async Task<bool> SaveDirtySkuAsync(string sku, int categoryId)
+    private async Task<bool> SaveDirtySkuAsync(string sku, int categoryId, CancellationToken stoppingToken)
     {
 
         try
@@ -145,7 +146,7 @@ public class CrawlerUseCase
             {
 
                 var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                var exists = await appDbContext.DirtySkus.AnyAsync(d => d.Sku == sku);
+                var exists = await appDbContext.DirtySkus.AnyAsync(d => d.Sku == sku,stoppingToken);
                 if (!exists)
                 {
                     var dirtySku = new DirtySku
@@ -155,7 +156,7 @@ public class CrawlerUseCase
                         Processed = false
                     };
                     appDbContext.DirtySkus.Add(dirtySku);
-                    await appDbContext.SaveChangesAsync();
+                    await appDbContext.SaveChangesAsync(stoppingToken);
                     Log.Information($"Save dirtysku {sku} successfully");
                     return true;
                 }

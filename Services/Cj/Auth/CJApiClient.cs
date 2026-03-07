@@ -53,7 +53,7 @@ public class CJApiClient
 
         throw new Exception("Unexpected retry exit");
     }
-    private async Task<T> GetAsync<T>(string endpoint)
+    private async Task<T> GetAsync<T>(string endpoint, CancellationToken stoppingToken)
     {
         return await ExecuteWithRetryAsync(async () =>
         {
@@ -63,7 +63,7 @@ public class CJApiClient
             await _rateLimiter.ExecuteWithCjRateLimitAsync(async () =>
             {
                 await AddAuthAsync();
-                response = await _httpClient.GetAsync(endpoint);
+                response = await _httpClient.GetAsync(endpoint, stoppingToken);
             });
 
             body = await response.Content.ReadAsStringAsync();
@@ -103,7 +103,7 @@ public class CJApiClient
     /// <summary>
     /// Get full product detail by sku
     /// </summary>
-    public async Task<CjProductDetailResponse> GetProductDetailAsync(string sku, bool isProductSku = true)
+    public async Task<CjProductDetailResponse> GetProductDetailAsync(string sku,  CancellationToken stoppingToken, bool isProductSku = true)
     {
         // Default is variantSku
         var endpoint = $"product/query?variantSku={sku}&countryCode=US";
@@ -113,7 +113,7 @@ public class CJApiClient
         }
         try
         {
-            var result = await GetAsync<CjProductDetailResponse>(endpoint);
+            var result = await GetAsync<CjProductDetailResponse>(endpoint,stoppingToken );
             return result;
         }
         catch (CjDailyLimitException)
@@ -137,7 +137,7 @@ public class CJApiClient
     }
     // By Default, Loop through 50 page, 50 products each page to LOOK for PIDs only
 
-    public async Task<CjProductListV2Response> GetCjProductListAsync(string keyword, int page, int size, int addMarkStatus, bool isPopulated)
+    public async Task<CjProductListV2Response> GetCjProductListAsync(string keyword, int page, int size, int addMarkStatus, bool isPopulated, CancellationToken stoppingToken)
     {
         string timeFilter = "";
         // If proudct is already populated, look for product that was added from the previous day only
@@ -163,7 +163,7 @@ public class CJApiClient
                                                    $"size={size}&" +
                                                    "verifiedWarehouse=1&" +
                                                    "startWarehouseInventory=20&"+
-                                                   timeFilter
+                                                   timeFilter, stoppingToken
                                                    );
             return response;
 
@@ -179,11 +179,11 @@ public class CJApiClient
         }    
 }
 
-    public async Task<CjStockBySkuResponse> GetStockBySkuAsync(string variantSku)
+    public async Task<CjStockBySkuResponse> GetStockBySkuAsync(string variantSku, CancellationToken stoppingToken)
     {
         try
         {
-        return await GetAsync<CjStockBySkuResponse>($"product/stock/queryBySku?sku={variantSku}");
+        return await GetAsync<CjStockBySkuResponse>($"product/stock/queryBySku?sku={variantSku}",stoppingToken);
             
         }
         catch (CjDailyLimitException)

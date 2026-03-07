@@ -11,9 +11,9 @@ public class CjHelper
     /// </summary>
     /// <param name="variantSku"></param>
     /// <returns>Number of us stock. If None, return 0</returns>
-    public static  async Task<int> GetUsStock(string variantSku, CJApiClient cJApiClient)
+    public static  async Task<int> GetUsStock(string variantSku, CJApiClient cJApiClient, CancellationToken cancellationToken)
     {
-        var stockResult = await cJApiClient.GetStockBySkuAsync(variantSku);
+        var stockResult = await cJApiClient.GetStockBySkuAsync(variantSku,cancellationToken);
 
         return stockResult.Data.FirstOrDefault(x => x.CountryCode.Contains("US"))?.CjInventoryNum ?? 0;
     }

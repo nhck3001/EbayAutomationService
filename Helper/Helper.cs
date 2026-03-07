@@ -17,7 +17,7 @@ public static class Helper
     //RECOMMENDED ASPECTS:
     //- Material (Type: STRING)
     //- Mounting (Type: STRING)
-    public static async Task<string> LoadAspectsForPrompt(string ebayCategoryId, string aspect = "RequiredAspects")
+    public static async Task<string> LoadAspectsForPrompt(string ebayCategoryId, CancellationToken stoppingToken, string aspect = "RequiredAspects")
 
     {
         //Check if file exists
@@ -26,7 +26,7 @@ public static class Helper
             throw new Exception("requiredAspects.json not found.");
         }
         // Read file, return a string
-        var fullJson = await File.ReadAllTextAsync(GetAspectJson());
+        var fullJson = await File.ReadAllTextAsync(GetAspectJson(), stoppingToken);
         // Get the correct category
         var obj = JObject.Parse(fullJson);
         var categoriesList = obj["Categories"] as JArray;
@@ -70,9 +70,9 @@ public static class Helper
         return string.Join(Environment.NewLine, formattedAspects);
     }
 
-    public static async Task<String> GetEbayCategoryName(string ebayCategoryId)
+    public static async Task<String> GetEbayCategoryName(string ebayCategoryId, CancellationToken stoppingToken)
     {
-        var fullJson = await File.ReadAllTextAsync(GetAspectJson());
+        var fullJson = await File.ReadAllTextAsync(GetAspectJson(),stoppingToken);
         // Get the correct category
         var obj = JObject.Parse(fullJson);
         var categoriesList = obj["Categories"] as JArray;

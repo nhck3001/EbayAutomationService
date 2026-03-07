@@ -23,7 +23,7 @@ public class CleanSkuUseCase
 
     }
     // Process a batch of 20 skus
-    public async Task ProcessBatchAsync()
+    public async Task ProcessBatchAsync(CancellationToken stoppingToken)
     {
         try
         {
@@ -38,7 +38,7 @@ public class CleanSkuUseCase
                 .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
                 .Take(batchSize)
                 .Select(s => s.Id)
-                .ToListAsync();
+                .ToListAsync(stoppingToken);
             }
             if (!dirtySkuIds.Any())
             {
@@ -48,8 +48,8 @@ public class CleanSkuUseCase
             // Process batch
             foreach (var dirtySkuId in dirtySkuIds)
             {
-                await ProcessSingleSku(_scopeFactory, dirtySkuId, _cjApiClient, _deepSeekClient);
-                await MarkSkuProcessed(dirtySkuId);
+                await ProcessSingleSku(_scopeFactory, dirtySkuId, _cjApiClient, _deepSeekClient, stoppingToken);
+                await MarkSkuProcessed(dirtySkuId, stoppingToken);
             }
         }
 
@@ -59,7 +59,7 @@ public class CleanSkuUseCase
             throw;
         }
     }
-    private async Task ProcessSingleSku(IServiceScopeFactory scopeFactory, int dirtySkuId, CJApiClient cjClient, DeepSeekClient deepSeekClient)
+    private async Task ProcessSingleSku(IServiceScopeFactory scopeFactory, int dirtySkuId, CJApiClient cjClient, DeepSeekClient deepSeekClient, CancellationToken stoppingToken)
     {
 
         CjProductDetailResponse productInfo;
@@ -67,11 +67,11 @@ public class CleanSkuUseCase
         using (var scope = scopeFactory.CreateScope())
         {
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            dirtySku = await context.DirtySkus.FindAsync(dirtySkuId);
+            dirtySku = await context.DirtySkus.FindAsync(dirtySkuId, stoppingToken);
         }
 
         Log.Information($"Fetching product info for sku {dirtySku.Sku}");
-        productInfo = await cjClient.GetProductDetailAsync(dirtySku.Sku, isProductSku: true);
+        productInfo = await cjClient.GetProductDetailAsync(dirtySku.Sku, stoppingToken, isProductSku: true);
         // Check if cj return productInfo
         if (productInfo == null)
         {
@@ -85,17 +85,18 @@ public class CleanSkuUseCase
         }
         // Only process the first variant of the product
         var variant = productInfo.Data.Variants.First();
-        await ProcessVariant(scopeFactory, variant, dirtySku.EbayCategoryId, productInfo, cjClient, deepSeekClient);
+        await ProcessVariant(scopeFactory, variant, dirtySku.EbayCategoryId, productInfo, cjClient, deepSeekClient, stoppingToken);
 
     }
 
     // Function to process each variant
-    private async Task ProcessVariant(IServiceScopeFactory scopeFactory, CjVariant variant, int ebayCategoryId, CjProductDetailResponse productInfo, CJApiClient cjClient, DeepSeekClient deepSeekClient)
+    private async Task ProcessVariant(IServiceScopeFactory scopeFactory, CjVariant variant, int ebayCategoryId,
+    CjProductDetailResponse productInfo, CJApiClient cjClient, DeepSeekClient deepSeekClient, CancellationToken stoppingToken)
     {
         try
         {
             // Check US availability
-            var usStock = await CjHelper.GetUsStock(variant.VariantSku!, cjClient);
+            var usStock = await CjHelper.GetUsStock(variant.VariantSku!, cjClient, stoppingToken);
             if (usStock == 0)
             {
                 Log.Information($"Reject {variant.VariantSku} not available in US");
@@ -111,7 +112,7 @@ public class CleanSkuUseCase
             }
 
             // find out if there is a suitable category
-            var categoryResult = await verifyCategory(deepSeekInput, ebayCategoryId, variant.VariantSku);
+            var categoryResult = await verifyCategory(deepSeekInput, ebayCategoryId, variant.VariantSku, stoppingToken);
 
             if (categoryResult == null)
             {
@@ -124,7 +125,7 @@ public class CleanSkuUseCase
             }
 
             // If reach here, there must be a suitable category
-            var listingResult = await verifyListing(deepSeekInput, categoryResult.CategoryId, variant.VariantSku);
+            var listingResult = await verifyListing(deepSeekInput, categoryResult.CategoryId, variant.VariantSku, stoppingToken);
             if (listingResult == null)
             {
                 Log.Information($"{variant.VariantSku} cannot deserialize AI response");
@@ -138,7 +139,7 @@ public class CleanSkuUseCase
             }
 
             // Save to database
-            await SaveValidatedSku(scopeFactory, variant, listingResult, int.Parse(categoryResult.CategoryId), usStock);
+            await SaveValidatedSku(scopeFactory, variant, listingResult, int.Parse(categoryResult.CategoryId), usStock,  stoppingToken);
         }
         // Catch database exception first
         catch (DbUpdateException ex)
@@ -168,7 +169,8 @@ public class CleanSkuUseCase
         }
     }
 
-    private async Task SaveValidatedSku(IServiceScopeFactory scopeFactory, CjVariant variant, AiEnrichmentResult aiResult, int ebayCategoryId, int usStock)
+    private async Task SaveValidatedSku(IServiceScopeFactory scopeFactory, CjVariant variant, AiEnrichmentResult aiResult,
+                                        int ebayCategoryId, int usStock, CancellationToken stoppingToken)
     {
         var itemSpecifics = aiResult.RequiredFields.Concat(aiResult.RecommendedFields).ToDictionary(x => x.Key, x => x.Value);
         var skuEntity = new Sku
@@ -191,7 +193,7 @@ public class CleanSkuUseCase
             {
                 var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                 context.Skus.Add(skuEntity);
-                await context.SaveChangesAsync();
+                await context.SaveChangesAsync(stoppingToken);
                 Log.Information($"Save qualified Sku {variant.VariantSku} successfully");
 
                 return;
@@ -211,22 +213,22 @@ public class CleanSkuUseCase
 
     }
     // Take in dirtyskuId, mark the sku as processed
-    private async Task MarkSkuProcessed(int dirtySkuId)
+    private async Task MarkSkuProcessed(int dirtySkuId, CancellationToken stoppingToken)
     {
         using var scope = _scopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var sku = await context.DirtySkus.FindAsync(dirtySkuId);
+        var sku = await context.DirtySkus.FindAsync(dirtySkuId, stoppingToken);
         sku.Processed = true;
 
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(stoppingToken);
     }
 
-    private async Task<CategorySelectionResult?> verifyCategory(DeepSeekInput input, int ebayCategoryId, string variantSku)
+    private async Task<CategorySelectionResult?> verifyCategory(DeepSeekInput input, int ebayCategoryId, string variantSku, CancellationToken stoppingToken)
     {
         var prompt = DeepSeekService.BuildCategoryPrompt(input.Name ?? "", input.Description ?? "", CrawlHelper.getCandidateCategories(ebayCategoryId.ToString()));
 
-        var response = await _deepSeekClient.SendPrompt(prompt);
+        var response = await _deepSeekClient.SendPrompt(prompt,stoppingToken);
         try
         {
             return JsonConvert.DeserializeObject<CategorySelectionResult>(response);
@@ -238,7 +240,7 @@ public class CleanSkuUseCase
             return null; // Return null instead of throw => simply skip the current variant sku
         }
     }
-    private async Task<AiEnrichmentResult?> verifyListing(DeepSeekInput input, string categoryId, string variantSku)
+    private async Task<AiEnrichmentResult?> verifyListing(DeepSeekInput input, string categoryId, string variantSku, CancellationToken stoppingToken)
     {
 
         var settings = new JsonSerializerSettings
@@ -246,10 +248,10 @@ public class CleanSkuUseCase
             NullValueHandling = NullValueHandling.Ignore
         };
         var inputString = JsonConvert.SerializeObject(input, Formatting.Indented, settings);
-        var recommendedAspects = await Helper.LoadAspectsForPrompt(categoryId, "RecommendedAspects");
-        var requiredAspects = await Helper.LoadAspectsForPrompt(categoryId, "RequiredAspects");
+        var recommendedAspects = await Helper.LoadAspectsForPrompt(categoryId, stoppingToken, "RecommendedAspects");
+        var requiredAspects = await Helper.LoadAspectsForPrompt(categoryId, stoppingToken,  "RequiredAspects");
         var prompt = DeepSeekService.BuildPrompt(inputString, requiredAspects, recommendedAspects);
-        var response = await _deepSeekClient.SendPrompt(prompt);
+        var response = await _deepSeekClient.SendPrompt(prompt,stoppingToken);
         try
         {
             return JsonConvert.DeserializeObject<AiEnrichmentResult>(response);

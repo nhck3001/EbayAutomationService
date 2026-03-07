@@ -14,7 +14,7 @@ public class DeepSeekClient
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
     }
 
-    public async Task<string> SendPrompt(string prompt)
+    public async Task<string> SendPrompt(string prompt, CancellationToken stoppingToken)
     {
         // Pick the model of DeepSeek
         var body = new
@@ -30,11 +30,10 @@ public class DeepSeekClient
 
         var json = Newtonsoft.Json.JsonConvert.SerializeObject(body);
 
-        var response = await _http.PostAsync( "https://api.deepseek.com/v1/chat/completions",new StringContent(json, Encoding.UTF8, "application/json")
-        );
+        var response = await _http.PostAsync( "https://api.deepseek.com/v1/chat/completions",new StringContent(json, Encoding.UTF8, "application/json"),stoppingToken);
 
         // Check for HTTP level failures
-        var responseString = await response.Content.ReadAsStringAsync();
+        var responseString = await response.Content.ReadAsStringAsync(stoppingToken);
         if (!response.IsSuccessStatusCode)
             throw new Exception($"DeepSeek HTTP Error: {response.StatusCode}\n{responseString}");
 
