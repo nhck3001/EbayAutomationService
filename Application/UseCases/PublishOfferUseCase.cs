@@ -32,7 +32,7 @@ public class PublishOfferUseCase
                 .OrderBy(o => o.Id)
                 .Take(batchSize)
                 .Select(o => o.Id)
-                .ToListAsync();
+                .ToListAsync(stoppingToken);
         }
         if (offerItemIds.Count == 0)
         {
