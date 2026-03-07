@@ -47,8 +47,8 @@ public class RefreshInventory
                 var ebayOfferClient = scope.ServiceProvider.GetRequiredService<EbayOfferApiClient>();
                 var ebayInventoryClient = scope.ServiceProvider.GetRequiredService<EbayInventoryApiClient>();
                 // Get the offer and inventory object as Jtoken
-                var offerObject = await ebayOfferClient.getOffers(sku);
-                var inventoryItem = await ebayInventoryClient.GetSku(sku);
+                var offerObject = await ebayOfferClient.getOffers(sku, stoppingToken);
+                var inventoryItem = await ebayInventoryClient.GetSku(sku,stoppingToken);
                 // Update quantity
                 offerObject["availableQuantity"] = 1;
                 // product description is required even if not changed
@@ -56,7 +56,7 @@ public class RefreshInventory
                 offerObject["listingDescription"] = productDescription;
 
                 var jsonBody = offerObject.ToString(Formatting.None);
-                await ebayOfferClient.updateOffer(offerObject["offerId"].ToString(), jsonBody);
+                await ebayOfferClient.updateOffer(offerObject["offerId"].ToString(), jsonBody,stoppingToken);
                 Log.Information($"Refresh Inventory {sku} successfully.");
             }        
         }

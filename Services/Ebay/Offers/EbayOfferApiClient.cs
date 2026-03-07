@@ -26,7 +26,8 @@ public class EbayOfferApiClient
         string merchantLocationKey,
         string paymentPolicyId,
         string fulfillmentPolicyId,
-        string returnPolicyId
+        string returnPolicyId,
+        CancellationToken stoppingToken
     )
     {
         
@@ -56,7 +57,7 @@ public class EbayOfferApiClient
 
         var jsonBody = JsonConvert.SerializeObject(body);
         var request = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/sell/inventory/v1/offer");
-        HttpResponseMessage response = await _api.SendAsync(request, jsonBody, true);
+        HttpResponseMessage response = await _api.SendAsync(request,stoppingToken,  jsonBody, true);
         string responseText = await response.Content.ReadAsStringAsync();
         var responseJson = JObject.Parse(responseText);
 
@@ -100,11 +101,11 @@ public class EbayOfferApiClient
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
     /// <exception cref="Exception"></exception>
-    public async Task updateOffer(string offerID, string jsonBody)
+    public async Task updateOffer(string offerID, string jsonBody, CancellationToken stoppingToken)
     {
 
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Put, $"https://api.ebay.com/sell/inventory/v1/offer/{offerID}");
-        var response = await _api.SendAsync(request, jsonBody, true);
+        var response = await _api.SendAsync(request, stoppingToken, jsonBody, true);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -125,12 +126,12 @@ public class EbayOfferApiClient
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
     /// <exception cref="Exception"></exception>
-    public async Task<OperationResult> publishOffer(string offerId)
+    public async Task<OperationResult> publishOffer(string offerId, CancellationToken stoppingToken)
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, $"https://api.ebay.com/sell/inventory/v1/offer/{offerId}/publish");
         // Set the content type, and content-language header for the content as required in the ebay doc
 
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request,stoppingToken);
         var responseJson = JObject.Parse(await response.Content.ReadAsStringAsync());
         if (response.IsSuccessStatusCode)
         {
@@ -159,10 +160,10 @@ public class EbayOfferApiClient
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
     /// <exception cref="Exception"></exception>
-    public async Task<JToken> getOffers(string sku)
+    public async Task<JToken> getOffers(string sku, CancellationToken stoppingToken)
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/sell/inventory/v1/offer?sku={sku}");
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request, stoppingToken);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)

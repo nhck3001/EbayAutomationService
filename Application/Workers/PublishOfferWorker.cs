@@ -22,7 +22,7 @@ public class PublishOfferWorker : BackgroundService
                 using (var scope = _scopeFactory.CreateScope())
                 { 
                     var processor = scope.ServiceProvider.GetRequiredService<PublishOfferUseCase>();
-                    await processor.ProcessBatchAsync();
+                    await processor.ProcessBatchAsync(stoppingToken);
                 }
                 await Task.Delay(TimeSpan.FromSeconds(120), stoppingToken);
             }

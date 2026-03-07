@@ -20,7 +20,7 @@ public class PublishOfferUseCase
         _ebayOfferApiClient = ebayOfferApiClient;
     }
 
-    public async Task ProcessBatchAsync()
+    public async Task ProcessBatchAsync(CancellationToken stoppingToken)
     {
 
         List<int> offerItemIds;
@@ -41,13 +41,13 @@ public class PublishOfferUseCase
         }
         foreach (var offerItemId in offerItemIds)
         {
-            await ProcessSingle(offerItemId);
+            await ProcessSingle(offerItemId, stoppingToken);
         }
 
         
     }
 
-    private async Task ProcessSingle(int offerItemId)
+    private async Task ProcessSingle(int offerItemId, CancellationToken stoppingToken)
     {
         using (var scope = _scopeFactory.CreateScope())
         {
@@ -55,14 +55,14 @@ public class PublishOfferUseCase
 
             var offerItem = await appDbContext.OfferItems
                 .Include(o => o.Inventory)
-                .FirstOrDefaultAsync(o => o.Id == offerItemId);
+                .FirstOrDefaultAsync(o => o.Id == offerItemId,stoppingToken);
 
             if (offerItem == null)
                 return;
 
             Log.Information($"Publishing offer {offerItem.OfferId}");
 
-            var result = await _ebayOfferApiClient.publishOffer(offerItem.OfferId);
+            var result = await _ebayOfferApiClient.publishOffer(offerItem.OfferId, stoppingToken);
 
             try
             {
@@ -71,7 +71,7 @@ public class PublishOfferUseCase
                 if (result.Outcome == OperationOutcome.Success || result.Outcome == OperationOutcome.AlreadyExists)
                 {
                     offerItem.Status = OfferStatus.ListingCreated;
-                    var exists = await appDbContext.Listings.AnyAsync(l => l.OfferId == offerItem.Id);
+                    var exists = await appDbContext.Listings.AnyAsync(l => l.OfferId == offerItem.Id, stoppingToken);
                     if (!exists)
                     {
                         var listingEntity = new Listing
@@ -83,13 +83,13 @@ public class PublishOfferUseCase
                         appDbContext.Listings.Add(listingEntity);        
                     }
                     Log.Information($"Published offer {offerItem.OfferId} successfully");
-                    await appDbContext.SaveChangesAsync();
+                    await appDbContext.SaveChangesAsync(stoppingToken);
                 }
                 else if (result.Outcome == OperationOutcome.InvalidData)
                 {
                     offerItem.Status = OfferStatus.Failed;
                     Log.Information($"Publish offer failed for {offerItem.OfferId}. {result.RawMessage}");
-                    await appDbContext.SaveChangesAsync();
+                    await appDbContext.SaveChangesAsync(stoppingToken);
 
                 }
             }

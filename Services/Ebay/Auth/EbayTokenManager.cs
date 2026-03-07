@@ -23,20 +23,20 @@ public class EbayTokenManager
     }
 
     // Getting access token _authService
-    public async Task<string> GetValidTokenAsync()
+    public async Task<string> GetValidTokenAsync( CancellationToken stoppingToken)
     {
         // If there is a valid access token simply return it
         if (IsValid())
             return _accessToken!;
 
         // The lock make sure only 1 thread can request the access token at once
-        await _lock.WaitAsync();
+        await _lock.WaitAsync(stoppingToken);
         try
         {
             if (IsValid())
                 return _accessToken!;
 
-            var token = await _authService.GetAccessTokenAsync();
+            var token = await _authService.GetAccessTokenAsync(stoppingToken);
             _accessToken = token.access_token;
             _expiresAt = DateTime.UtcNow.AddSeconds(token.expires_in);
 
@@ -48,12 +48,12 @@ public class EbayTokenManager
         }
     }
 
-    public async Task ForceRefreshAsync()
+    public async Task ForceRefreshAsync(CancellationToken stoppingToken)
     {
-        await _lock.WaitAsync();
+        await _lock.WaitAsync(stoppingToken);
         try
         {
-            var token = await _authService.GetAccessTokenAsync();
+            var token = await _authService.GetAccessTokenAsync(stoppingToken);
             _accessToken = token.access_token;
             _expiresAt = DateTime.UtcNow.AddSeconds(token.expires_in);
         }

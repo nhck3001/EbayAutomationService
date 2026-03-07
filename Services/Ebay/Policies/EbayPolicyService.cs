@@ -28,14 +28,14 @@ public class EbayPolicyService
     /// </summary>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task<string> GetPaymentPolicyId(string policyName)
+    public async Task<string> GetPaymentPolicyId(string policyName, CancellationToken stoppingToken)
     {
         var request = new HttpRequestMessage(
             HttpMethod.Get,
             "https://api.ebay.com/sell/account/v1/payment_policy?marketplace_id=EBAY_US"
         );
 
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request,stoppingToken);
         var json = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -50,7 +50,7 @@ public class EbayPolicyService
     /// </summary>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task createReturnPolicy()
+    public async Task createReturnPolicy(CancellationToken stoppingToken)
     {
         string jsonBody = @"
         {
@@ -66,7 +66,7 @@ public class EbayPolicyService
         }";
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/sell/account/v1/return_policy");
         request.Content = new StringContent(jsonBody, Encoding.UTF8, "application/json");
-        var response = await _api.SendAsync(request, jsonBody, true);
+        var response = await _api.SendAsync(request,stoppingToken, jsonBody, true);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -86,14 +86,14 @@ public class EbayPolicyService
     /// </summary>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task<string> GetReturnPolicyId(string policyName)
+    public async Task<string> GetReturnPolicyId(string policyName, CancellationToken stoppingToken)
     {
         var request = new HttpRequestMessage(
             HttpMethod.Get,
             "https://api.ebay.com/sell/account/v1/return_policy?marketplace_id=EBAY_US"
         );
 
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request,stoppingToken);
         var json = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -108,14 +108,14 @@ public class EbayPolicyService
     /// </summary>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task<string> GetFulfillmentPolicyId(string policyName)
+    public async Task<string> GetFulfillmentPolicyId(string policyName, CancellationToken stoppingToken)
     {
         var request = new HttpRequestMessage(
             HttpMethod.Get,
             "https://api.ebay.com/sell/account/v1/fulfillment_policy?marketplace_id=EBAY_US"
         );
 
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request,stoppingToken);
         var json = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -130,7 +130,7 @@ public class EbayPolicyService
     /// </summary>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task<string> createPaymentmentPolicy()
+    public async Task<string> createPaymentmentPolicy(CancellationToken stoppingToken)
     {
         string jsonBody = @"
                         {
@@ -144,7 +144,7 @@ public class EbayPolicyService
                         }";
 
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.ebay.com/sell/account/v1/payment_policy");
-        var response = await _api.SendAsync(request, jsonBody, true);
+        var response = await _api.SendAsync(request, stoppingToken, jsonBody, true);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)

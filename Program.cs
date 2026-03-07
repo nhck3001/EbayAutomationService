@@ -117,7 +117,7 @@ class Program
                     using (var scope = host.Services.CreateScope())
                     {
                         var useCase = scope.ServiceProvider.GetRequiredService<CreateInventoryUseCase>();
-                        await useCase.ProcessBatchAsync();
+                        await useCase.ProcessBatchAsync(CancellationToken.None);
                     }
                     break;
 
@@ -126,7 +126,7 @@ class Program
                     using (var scope = host.Services.CreateScope())
                     {
                         var useCase = scope.ServiceProvider.GetRequiredService<CreateOfferUseCase>();
-                        await useCase.ProcessBatchAsync();
+                        await useCase.ProcessBatchAsync(CancellationToken.None);
                     }
                     break;
 
@@ -136,7 +136,7 @@ class Program
                     {
                         var scopeFactory = scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>();
                         var publishOfferUseCase = scope.ServiceProvider.GetRequiredService<PublishOfferUseCase>();
-                        await publishOfferUseCase.ProcessBatchAsync();
+                        await publishOfferUseCase.ProcessBatchAsync(CancellationToken.None);
                     }
                     break;
                 case "test":

@@ -36,7 +36,7 @@ public class EbayAuthService
     }
 
     // Getting access token from appID, certID/ClientSecretm refreshToken
-    public async Task<(string access_token, int expires_in)> GetAccessTokenAsync()
+    public async Task<(string access_token, int expires_in)> GetAccessTokenAsync(CancellationToken stoppingToken)
     {
         // Form the authentication string from appID and certID, then Encode it using base64
         var authString = $"{_appId}:{_certId}";
@@ -58,8 +58,8 @@ public class EbayAuthService
         });
 
         // Get the response in the form of HttpResponseMessage object
-        var response = await client.PostAsync("https://api.ebay.com/identity/v1/oauth2/token", content);
-        var json = await response.Content.ReadAsStringAsync();
+        var response = await client.PostAsync("https://api.ebay.com/identity/v1/oauth2/token", content,stoppingToken);
+        var json = await response.Content.ReadAsStringAsync(stoppingToken);
 
         if (!response.IsSuccessStatusCode)
         {

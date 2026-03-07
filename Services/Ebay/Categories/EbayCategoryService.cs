@@ -17,10 +17,10 @@ public class EbayCategoryService
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
     /// <exception cref="Exception"></exception>
-    public async Task<string> getDefaultCategoryTreeID()
+    public async Task<string> getDefaultCategoryTreeID(CancellationToken stoppingToken)
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://api.ebay.com/commerce/taxonomy/v1/get_default_category_tree_id?marketplace_id=EBAY_US");
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request,stoppingToken);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -38,14 +38,14 @@ public class EbayCategoryService
 
     /// <summary> /// This will get suggested category based on categoryTreeID + suggessted phrase 
     /// /// </summary> /// <returns></returns> /// <exception cref="HttpRequestException"></exception> /// <exception cref="Exception"></exception> 
-    public async Task<string> GetItemAspectForCategory( string categoryId = "")
+    public async Task<string> GetItemAspectForCategory( CancellationToken stoppingToken,string categoryId = "")
     {
         HttpRequestMessage request = new HttpRequestMessage(
             HttpMethod.Get,
             $"https://api.ebay.com/commerce/taxonomy/v1/category_tree/0/get_item_aspects_for_category?category_id={categoryId}"
         );
 
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request,stoppingToken);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -102,10 +102,10 @@ public class EbayCategoryService
     }
 
 
-    public async Task<JToken> getCompleteCategoryTree(string categoryTreeId = "0")
+    public async Task<JToken> getCompleteCategoryTree(CancellationToken stoppingToken,string categoryTreeId = "0")
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/commerce/taxonomy/v1/category_tree/{categoryTreeId}");
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request,stoppingToken);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -121,30 +121,15 @@ public class EbayCategoryService
         return JObject.Parse(responseJson);
     }
 
-    public async Task<string> getSuggesstedCategory(string suggesstedPhrase)
-    {
-        HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/commerce/taxonomy/v1/category_tree/0/get_category_suggestions?q={suggesstedPhrase}");
 
-        var response = await _api.SendAsync(request);
-        var responseJson = await response.Content.ReadAsStringAsync();
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new HttpRequestException($"eBay API request failed with status code {response.StatusCode}. Response: {response.Content}", null, response.StatusCode);
-        }
-
-        var treeID = JObject.Parse(responseJson)["categorySuggestions"][1]["category"]["categoryId"]?.ToString();
-        return treeID ?? throw new Exception("No categoryId returned.");
-    }
-
-    public async Task<JObject> GetCategorySubtree( string categoryId)
+    public async Task<JObject> GetCategorySubtree( string categoryId, CancellationToken stoppingToken)
     {
         var request = new HttpRequestMessage(
             HttpMethod.Get,
             $"https://api.ebay.com/commerce/taxonomy/v1/category_tree/0/get_category_subtree?category_id={categoryId}"
         );
 
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request, stoppingToken);
         var json = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)

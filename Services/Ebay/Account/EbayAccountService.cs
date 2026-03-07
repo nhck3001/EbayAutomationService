@@ -21,7 +21,7 @@ public class EbayAccountService
     ///  EbayProgramType.PartnerMotorsDealer => "PARTNER_MOTORS_DEALER",
     /// EbayProgramType.SellingPolicyManagement => "SELLING_POLICY_MANAGEMENT",
   
-  public async Task optInBusinessSellerProgram(string ebayProgramType = "SELLING_POLICY_MANAGEMENT")
+  public async Task optInBusinessSellerProgram(CancellationToken stoppingToken,string ebayProgramType = "SELLING_POLICY_MANAGEMENT")
     {
         var body = new
         {
@@ -30,7 +30,7 @@ public class EbayAccountService
 
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Post, "https://api.sandbox.ebay.com/sell/account/v1/program/opt_in");
         var json = JsonConvert.SerializeObject(body);
-        var response = await _api.SendAsync(request, json, true);
+        var response = await _api.SendAsync(request,stoppingToken, json, true);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -49,11 +49,11 @@ public class EbayAccountService
   /// </summary>
   /// <returns></returns>
   /// <exception cref="HttpRequestException"></exception>
-  public async Task<List<string>> getOptedInPrograms()
+  public async Task<List<string>> getOptedInPrograms(CancellationToken stoppingToken)
   {
       HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://api.ebay.com/sell/account/v1/program/get_opted_in_programs");
 
-      var response = await _api.SendAsync(request);
+      var response = await _api.SendAsync(request,stoppingToken);
       var responseJson = await response.Content.ReadAsStringAsync();
 
       if (!response.IsSuccessStatusCode)

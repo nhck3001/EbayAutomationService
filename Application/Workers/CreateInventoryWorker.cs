@@ -22,7 +22,7 @@ public class CreateInventoryWorker : BackgroundService
                 using (var scope = _scopeFactory.CreateScope())
                 {
                     var processor = scope.ServiceProvider.GetRequiredService<CreateInventoryUseCase>();
-                    await processor.ProcessBatchAsync();
+                    await processor.ProcessBatchAsync(stoppingToken);
                 }
                 await Task.Delay(TimeSpan.FromSeconds(120), stoppingToken);
             }

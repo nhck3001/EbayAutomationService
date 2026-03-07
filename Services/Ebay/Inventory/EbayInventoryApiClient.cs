@@ -24,7 +24,8 @@ public class EbayInventoryApiClient
         string description,
         List<string> images,
         Dictionary<string, List<string>> itemSpecifics,
-        int quantity
+        int quantity,
+        CancellationToken stoppingToken
     )
     {
         var body = new
@@ -50,7 +51,7 @@ public class EbayInventoryApiClient
 
         var url = $"https://api.ebay.com/sell/inventory/v1/inventory_item/{sku}";
         var request = new HttpRequestMessage(HttpMethod.Put, url);
-        var response = await _api.SendAsync(request, jsonBody, true);
+        var response = await _api.SendAsync(request, stoppingToken, jsonBody, true);
 
         // Success
         if (response.IsSuccessStatusCode)
@@ -92,12 +93,12 @@ public class EbayInventoryApiClient
     /// <param name="sku"></param>
     /// <returns>JObject representing the inventory item</returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task<JObject> GetSku(string sku)
+    public async Task<JObject> GetSku(string sku, CancellationToken stoppingToken)
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get,$"https://api.ebay.com/sell/inventory/v1/inventory_item/{sku}"
         );
 
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request, stoppingToken);
         var json = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -114,7 +115,7 @@ public class EbayInventoryApiClient
 
 
     // Get the number of Inventory Items that user has
-    public async Task<List<string>> getAllSku()
+    public async Task<List<string>> getAllSku(CancellationToken stoppingToken)
     {
         var skus = new List<string>();
         int offset = 0;
@@ -126,7 +127,7 @@ public class EbayInventoryApiClient
         {
             HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/sell/inventory/v1/inventory_item?offset={offset}&limit={limit}");
             // Get the response in the form of HttpResponseMessage object
-            var response = await _api.SendAsync(request);
+            var response = await _api.SendAsync(request,stoppingToken);
             var json = await response.Content.ReadAsStringAsync();
 
             if (!response.IsSuccessStatusCode)
@@ -159,11 +160,11 @@ public class EbayInventoryApiClient
     }
 
     // Used to get the number InventoryItem
-    public async Task<string> GetInventoryItemCount()
+    public async Task<string> GetInventoryItemCount(CancellationToken stoppingToken)
     {
 
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, "https://api.ebay.com/sell/inventory/v1/inventory_item?limit=2&offset=0");
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request,stoppingToken);
         var json = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -184,7 +185,7 @@ public class EbayInventoryApiClient
     /// <param name="merchantLocationKey"></param>
     /// <returns> an OperationResult object deciding what the next steps would be</returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task CreateInventoryLocationIfNotExists(string merchantLocationKey)
+    public async Task CreateInventoryLocationIfNotExists(string merchantLocationKey, CancellationToken stoppingToken)
     {
         var url = $"https://api.ebay.com/sell/inventory/v1/location/{merchantLocationKey}";
 
@@ -213,7 +214,7 @@ public class EbayInventoryApiClient
             Content = new StringContent(json, Encoding.UTF8, "application/json")
         };
 
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request,stoppingToken);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         // Location already exists → safe to ignore
@@ -244,10 +245,10 @@ public class EbayInventoryApiClient
     /// <param name="merchantLocationKey"></param>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task<string> getMerchantLocationKey()
+    public async Task<string> getMerchantLocationKey(CancellationToken stoppingToken)
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"https://api.ebay.com/sell/inventory/v1/location?");
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request,stoppingToken);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)
@@ -284,10 +285,10 @@ public class EbayInventoryApiClient
     /// </summary>
     /// <returns></returns>
     /// <exception cref="HttpRequestException"></exception>
-    public async Task deleteInventoryItem(string sku)
+    public async Task deleteInventoryItem(string sku, CancellationToken stoppingToken)
     {
         HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, $"https://api.ebay.com/sell/inventory/v1/inventory_item/{sku}");
-        var response = await _api.SendAsync(request);
+        var response = await _api.SendAsync(request,stoppingToken);
         var responseJson = await response.Content.ReadAsStringAsync();
 
         if (!response.IsSuccessStatusCode)

@@ -22,7 +22,7 @@ public class CreateOfferUseCase
         _ebayOfferApiClient = ebayOfferApiClient;
     }
 
-    public async Task ProcessBatchAsync()
+    public async Task ProcessBatchAsync(CancellationToken stoppingToken)
     {
 
         List<int> inventoryItemIds = new List<int>();
@@ -34,7 +34,7 @@ public class CreateOfferUseCase
             .OrderBy(sku => sku.Id)  // Add ordering for consistent paging
             .Take(batchSize)
             .Select(s => s.Id)
-            .ToListAsync();
+            .ToListAsync(stoppingToken);
         }
         if (inventoryItemIds.Count == 0)
         {
@@ -43,10 +43,10 @@ public class CreateOfferUseCase
         }
         foreach (var inventoryId in inventoryItemIds)
         {
-            await ProcessSingle(inventoryId);
+            await ProcessSingle(inventoryId,stoppingToken);
         }    
     }
-    private async Task ProcessSingle(int inventoryId)
+    private async Task ProcessSingle(int inventoryId, CancellationToken stoppingToken)
     {
         using (var scope = _scopeFactory.CreateScope())
         {
@@ -62,7 +62,8 @@ public class CreateOfferUseCase
                                                     "DEFAULT_LOCATION",
                                                     PAYMENT_POLICY_ID,
                                                     FULFILLMENT_POLICY_ID,
-                                                    RETURN_POLICY_ID);
+                                                    RETURN_POLICY_ID,
+                                                    stoppingToken);
 
             try
             {

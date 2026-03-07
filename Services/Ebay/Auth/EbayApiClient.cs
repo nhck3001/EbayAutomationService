@@ -26,9 +26,9 @@ public class EbayApiClient
     /// </summary>
     /// <param name="request"></param>
     /// <returns></returns>
-    public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, string json = null, bool settingHeaderContentLanguage = false)
+    public async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken stoppingToken, string json = null, bool settingHeaderContentLanguage = false)
     {
-        var token = await _tokenManager.GetValidTokenAsync();
+        var token = await _tokenManager.GetValidTokenAsync(stoppingToken);
         // Setting up headers
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         if (settingHeaderContentLanguage)
@@ -37,13 +37,13 @@ public class EbayApiClient
             request.Content!.Headers.Add("Content-Language", "en-US");
 
         }
-        var response = await _client.SendAsync(request);
+        var response = await _client.SendAsync(request,stoppingToken);
 
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            await _tokenManager.ForceRefreshAsync();
-            token = await _tokenManager.GetValidTokenAsync();
-            response = await _client.SendAsync(request);
+            await _tokenManager.ForceRefreshAsync(stoppingToken);
+            token = await _tokenManager.GetValidTokenAsync(stoppingToken);
+            response = await _client.SendAsync(request, stoppingToken);
         }
 
         return response;
