@@ -30,7 +30,7 @@ public class CJApiClient
         _httpClient.DefaultRequestHeaders.Remove("CJ-Access-Token");
         _httpClient.DefaultRequestHeaders.Add("CJ-Access-Token", token);
     }
-    private async Task<T> ExecuteWithRetryAsync<T>(Func<Task<T>> action)
+    private async Task<T> ExecuteWithRetryAsync<T>(Func<Task<T>> action,CancellationToken stoppingToken)
     {
         const int maxRetries = 5;
 
@@ -38,7 +38,11 @@ public class CJApiClient
         {
             try
             {
-                return await action();
+                return await action(    );
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                throw; // cancellation is normal
             }
             catch (CjRateLimitException)
             {
@@ -90,12 +94,13 @@ public class CJApiClient
                     throw new CjRateLimitException();    
                 }
             }
+            
             // Catch other exceptions
             if (!response.IsSuccessStatusCode)
                 throw new CjApiException((int)response.StatusCode, body);
 
             return JsonConvert.DeserializeObject<T>(body)!;
-        });
+        },stoppingToken);
     }
 
     // ---------- READ-ONLY ENDPOINTS ----------
