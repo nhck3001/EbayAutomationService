@@ -71,7 +71,7 @@ public class CreateOfferUseCase
                 if (result.Outcome == OperationOutcome.Success || result.Outcome == OperationOutcome.AlreadyExists)
                 {
                     inventoryItem.Status = InventoryStatus.OfferCreated;
-                    var exists = await appDbContext.OfferItems.AnyAsync(o => o.InventoryId == inventoryItem.Id);
+                    var exists = await appDbContext.OfferItems.AnyAsync(o => o.InventoryId == inventoryItem.Id,stoppingToken);
                     if (!exists)
                     {
                         var offerEntity = new OfferItem
@@ -86,13 +86,13 @@ public class CreateOfferUseCase
                         };
                         appDbContext.OfferItems.Add(offerEntity);
                     }
-                    await appDbContext.SaveChangesAsync();
+                    await appDbContext.SaveChangesAsync(stoppingToken);
                     Log.Information($"Created OfferItem {inventoryItem.sku.SkuCode} successfully");
                 }
                 else if (result.Outcome == OperationOutcome.InvalidData)
                 {
                     inventoryItem.Status = InventoryStatus.Failed;
-                    await appDbContext.SaveChangesAsync();
+                    await appDbContext.SaveChangesAsync(stoppingToken);
                     Log.Information($"Offer creation failed for {inventoryItem.sku.SkuCode}. {result.RawMessage}");
                 }
 
