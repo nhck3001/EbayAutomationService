@@ -76,6 +76,7 @@ class Program
                 services.AddScoped<CJRateLimiter>();
                 services.AddScoped<CrawlHelper>();
                 services.AddScoped<RefreshInventory>();
+                services.AddScoped<EbayFulfillmentApi>();
                 services.AddHostedService<CrawlWorker>();
                 services.AddHostedService<CreateInventoryWorker>();
                 services.AddHostedService<CleanSkuWorker>();
@@ -148,8 +149,14 @@ class Program
                 case "test":
                     using (var scope = host.Services.CreateScope())
                     {
-                        var CleanSkuUseCase = scope.ServiceProvider.GetRequiredService<RefreshInventory>();
-                        await CleanSkuUseCase.ProcessBatchAsync("CJJT245038001AZ",CancellationToken.None);
+                        var ebayFulfillmentApi = scope.ServiceProvider.GetRequiredService<EbayFulfillmentApi>();
+                        var pendingOrders = await ebayFulfillmentApi.GetPendingOrders(CancellationToken.None);
+                        foreach (var order in pendingOrders)
+                        {
+                            var orderId = order.OrderId;
+
+
+                        }
                     }
                     break;
             }
@@ -163,18 +170,6 @@ class Program
     }
 }
 
-// Hooks and Hangers 36024
-// Umbrella Stands 40620
-// Closet Organizer 43503
-// Storage Bags 43504
-// Clothes Hanger 11673
-// Drawer Liners 122772
-// Storage Units 122954
-// Storage Bins and Baskets 159898
-// Storage Boxes 159897
-// Garment Racks 166325
-
-    
 
 
 
