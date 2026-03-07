@@ -24,9 +24,9 @@ public class CJApiClient
         );
     }
     // remove header and add it again, incase access token is updated
-    private async Task AddAuthAsync()
+    private async Task AddAuthAsync(CancellationToken stoppingToken)
     {
-        var token = await _tokenManager.GetValidTokenAsync();
+        var token = await _tokenManager.GetValidTokenAsync(stoppingToken);
         _httpClient.DefaultRequestHeaders.Remove("CJ-Access-Token");
         _httpClient.DefaultRequestHeaders.Add("CJ-Access-Token", token);
     }
@@ -39,10 +39,6 @@ public class CJApiClient
             try
             {
                 return await action(    );
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                throw; // cancellation is normal
             }
             catch (CjRateLimitException)
             {
@@ -66,7 +62,7 @@ public class CJApiClient
 
             await _rateLimiter.ExecuteWithCjRateLimitAsync(async () =>
             {
-                await AddAuthAsync();
+                await AddAuthAsync(stoppingToken);
                 response = await _httpClient.GetAsync(endpoint, stoppingToken);
             });
 

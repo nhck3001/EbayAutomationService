@@ -21,18 +21,29 @@ public class CrawlerUseCase
     // Process each category
     public async Task ProcessBatchAsync(CancellationToken stoppingToken)
     {
-        // Get the list of categorieIds
-        List<int> categoryIds = null;
-        using (var scope = _scopeFactory.CreateScope())
+
+        try
         {
-            var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            categoryIds = await appDbContext.Categories.OrderBy(c => c.EbayCategoryId).Select(row => row.EbayCategoryId).ToListAsync(stoppingToken);
+            // Get the list of categorieIds
+            List<int> categoryIds = null;
+            using (var scope = _scopeFactory.CreateScope())
+            {
+                var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                categoryIds = await appDbContext.Categories.OrderBy(c => c.EbayCategoryId).Select(row => row.EbayCategoryId).ToListAsync(stoppingToken);
+            }
+            // Process category by category
+            foreach (var categoryId in categoryIds)
+            {
+                await ProcessCategoryAsync(categoryId, stoppingToken);
+            }
         }
-        // Process category by category
-        foreach (var categoryId in categoryIds)
+        
+        catch (CjDailyLimitException)
         {
-            await ProcessCategoryAsync(categoryId, stoppingToken);
+            Log.Information("Daily limit reached. Throwing up to worker");
+            throw;
         }
+
     }
     // Process each keyword of each category
     public async Task ProcessCategoryAsync(int categoryId,CancellationToken stoppingToken)
@@ -82,7 +93,6 @@ public class CrawlerUseCase
             if (!shouldContinue)
                 // Will skip the current keyword
                 break;
-            
         }
     }
     private async Task<(bool shouldContinue, int streakCount)> ProcessPageAsync(string keyword, int currentPage, int categoryId,
@@ -125,12 +135,7 @@ public class CrawlerUseCase
             }
             return (true, streakCount);
         }
-        catch (CjDailyLimitException)
-        {
-            Log.Information("Daily limit reached. Throwing up to worker");
-            throw;
-        }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Log.Warning(ex, "Error crawling page {Page}", currentPage);
             return (false, streakCount);

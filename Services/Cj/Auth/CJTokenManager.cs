@@ -12,18 +12,18 @@ public class CjTokenManager
     }
 
     // Return access token
-    public async Task<string> GetValidTokenAsync()
+    public async Task<string> GetValidTokenAsync( CancellationToken stoppingToken)
     {
         if (IsValid())
             return _accessToken!;
 
-        await _lock.WaitAsync();
+        await _lock.WaitAsync(stoppingToken);
         try
         {
             if (IsValid())
                 return _accessToken!;
             // If token is expired in less than 12 hours, get a new one and return it
-            var token = await _authService.RefreshAccessTokenAsync();
+            var token = await _authService.RefreshAccessTokenAsync(stoppingToken);
 
             _accessToken = token.AccessToken;
             _expiresAt = token.AccessTokenExpiryUtc;

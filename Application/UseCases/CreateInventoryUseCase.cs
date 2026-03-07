@@ -60,7 +60,7 @@ public class CreateInventoryUseCase
             {
                 itemSpecifics = JsonConvert.DeserializeObject<Dictionary<string, string>>(sku.ItemSpecifics).ToDictionary(kvp => kvp.Key, kvp => new List<string> { kvp.Value });
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 Log.Warning("Invalid ItemSpecifics for {Sku}: {Error}", sku.SkuCode, ex.Message);
                 sku.SkuStatus = SkuStatuses.Failed;

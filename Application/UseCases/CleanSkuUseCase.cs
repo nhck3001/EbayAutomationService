@@ -91,7 +91,7 @@ public class CleanSkuUseCase
             await ProcessVariant(scopeFactory, variant, dirtySku.EbayCategoryId, productInfo, cjClient, deepSeekClient, stoppingToken);   
         }
         // Catch other exceptions
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Log.Error($"Error processing Dirty Sku {dirtySku.Sku} : {ex.Message}");
             return;
@@ -171,7 +171,7 @@ public class CleanSkuUseCase
                 Log.Error(ex, "Unknown database error");
             }
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Log.Error($"Error processing variant {variant.VariantSku}: {ex.Message}");
             return;
@@ -243,7 +243,7 @@ public class CleanSkuUseCase
             return JsonConvert.DeserializeObject<CategorySelectionResult>(response);
         }
 
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Log.Error($"CATEGORY. Error processing variant {variantSku}: {ex.Message} : deepseekResult {response}");
             return null; // Return null instead of throw => simply skip the current variant sku
@@ -265,7 +265,7 @@ public class CleanSkuUseCase
         {
             return JsonConvert.DeserializeObject<AiEnrichmentResult>(response);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Log.Error($"Listing. Error processing variant {variantSku}: {ex.Message} : deepseekResult {response}");
             return null; // Return null instead of throw => simply skip the current variant sku

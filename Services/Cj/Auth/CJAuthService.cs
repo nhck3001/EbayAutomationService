@@ -14,17 +14,14 @@ public class CjAuthService
         };
     }
 
-    public async Task<CjTokenResponse> RefreshAccessTokenAsync()
+    public async Task<CjTokenResponse> RefreshAccessTokenAsync(CancellationToken stoppingToken)
     {
         var payload = new
         {
             refreshToken = _refreshToken
         };
 
-        var response = await _httpClient.PostAsJsonAsync(
-            "authentication/refreshAccessToken",
-            payload
-        );
+        var response = await _httpClient.PostAsJsonAsync("authentication/refreshAccessToken",payload, stoppingToken);
 
         response.EnsureSuccessStatusCode();
 
