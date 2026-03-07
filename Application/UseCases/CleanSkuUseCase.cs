@@ -58,35 +58,44 @@ public class CleanSkuUseCase
             Log.Information($"Clean Sku. Daily limit reached for Cj. Exit gracefully");
             throw;
         }
+
     }
     private async Task ProcessSingleSku(IServiceScopeFactory scopeFactory, int dirtySkuId, CJApiClient cjClient, DeepSeekClient deepSeekClient, CancellationToken stoppingToken)
     {
-
-        CjProductDetailResponse productInfo;
         DirtySku dirtySku = null;
-        using (var scope = scopeFactory.CreateScope())
+        try
         {
-            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            dirtySku = await context.DirtySkus.FindAsync(dirtySkuId, stoppingToken);
-        }
+            CjProductDetailResponse productInfo;
+            using (var scope = scopeFactory.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                dirtySku = await context.DirtySkus.FindAsync(dirtySkuId, stoppingToken);
+            }
 
-        Log.Information($"Fetching product info for sku {dirtySku.Sku}");
-        productInfo = await cjClient.GetProductDetailAsync(dirtySku.Sku, stoppingToken, isProductSku: true);
-        // Check if cj return productInfo
-        if (productInfo == null)
+            Log.Information($"Fetching product info for sku {dirtySku.Sku}");
+            productInfo = await cjClient.GetProductDetailAsync(dirtySku.Sku, stoppingToken, isProductSku: true);
+            // Check if cj return productInfo
+            if (productInfo == null)
+            {
+                Log.Information($"Skip sku {dirtySku.Sku}. Product has been removed from shell");
+                return;
+            }
+            else if (productInfo.Data.Variants == null || productInfo.Data.Variants.Count() == 0)
+            {
+                Log.Information($"Skip sku {dirtySku.Sku} - no variants");
+                return;
+            }
+
+            // Only process the first variant of the product
+            var variant = productInfo.Data.Variants.First();
+            await ProcessVariant(scopeFactory, variant, dirtySku.EbayCategoryId, productInfo, cjClient, deepSeekClient, stoppingToken);   
+        }
+        // Catch other exceptions
+        catch (Exception ex)
         {
-            Log.Information($"Skip sku {dirtySku.Sku}. Product has been removed from shell");
+            Log.Error($"Error processing Dirty Sku {dirtySku.Sku} : {ex.Message}");
             return;
         }
-        else if (productInfo.Data.Variants == null)
-        {
-            Log.Information($"Skip sku {dirtySku.Sku} - no variants");
-            return;
-        }
-        // Only process the first variant of the product
-        var variant = productInfo.Data.Variants.First();
-        await ProcessVariant(scopeFactory, variant, dirtySku.EbayCategoryId, productInfo, cjClient, deepSeekClient, stoppingToken);
-
     }
 
     // Function to process each variant

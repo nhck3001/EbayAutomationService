@@ -139,6 +139,12 @@ class Program
                         await publishOfferUseCase.ProcessBatchAsync(CancellationToken.None);
                     }
                     break;
+                case "testhost":
+                    Log.Information("Testing host");
+                        await host.RunAsync();
+
+                    
+                    break;            
                 case "test":
                     using (var scope = host.Services.CreateScope())
                     {
