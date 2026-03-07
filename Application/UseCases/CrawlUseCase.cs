@@ -41,7 +41,7 @@ public class CrawlerUseCase
         using (var scope = _scopeFactory.CreateScope())
         {
             var appDbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var category = await appDbContext.Categories.Where(c => c.EbayCategoryId == categoryId).FirstOrDefaultAsync();
+            var category = await appDbContext.Categories.Where(c => c.EbayCategoryId == categoryId).FirstOrDefaultAsync(stoppingToken);
             categoryKeyword = category.Keyword;
             var isPopulated = category.IsPopulated;
             Log.Information($"-----------------------Looping category {categoryId}. IS POPULATED {isPopulated}-----------------------");
@@ -54,7 +54,7 @@ public class CrawlerUseCase
             if (!category.IsPopulated)
             {
                 category.IsPopulated = true;
-                await appDbContext.SaveChangesAsync();
+                await appDbContext.SaveChangesAsync(stoppingToken);
             }
             Log.Information("Finished category {CategoryId}", categoryId);
         }
