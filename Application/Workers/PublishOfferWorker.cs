@@ -28,9 +28,9 @@ public class PublishOfferWorker : BackgroundService
             }
         }
         // Allow Ctrl+c to shut down gracefully
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            // Normal shutdown
+            Log.Information("PublishOffer worker cancelled.");
         }
         catch (Exception ex)
         {

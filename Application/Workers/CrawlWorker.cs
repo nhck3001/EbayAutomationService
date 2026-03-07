@@ -33,9 +33,9 @@ public class CrawlWorker : BackgroundService
             return; // exit worker cleanly
         }
         // Allow Ctrl+c to shut down gracefully
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
-            // Normal shutdown
+            Log.Information("Crawl worker cancelled.");
         }
         catch (Exception ex)
         {
