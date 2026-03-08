@@ -8,7 +8,7 @@ public class LineItemConfiguration : IEntityTypeConfiguration<LineItem>
     public void Configure(EntityTypeBuilder<LineItem> builder)
     {
         // Map to table
-        builder.ToTable("order_items");
+        builder.ToTable("line_items");
 
         // Primary key
         builder.HasKey(x => x.Id);
