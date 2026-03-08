@@ -1,4 +1,4 @@
-public class EbayOrder
+public class EbayOrderResponse
 {
     public string OrderId { get; set; }
 

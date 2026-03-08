@@ -16,6 +16,10 @@ public class AppDbContext : DbContext
     public DbSet<OfferItem> OfferItems { get; set; }
 
     public DbSet<Listing> Listings => Set<Listing>();
+    public DbSet<EbayOrder> EbayOrders => Set<EbayOrder>();
+    public DbSet<LineItem> LineItem => Set<LineItem>();
+
+
 
     // This function applies all the configuration that has been built 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -27,6 +31,8 @@ public class AppDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ListingConfiguration());
         modelBuilder.ApplyConfiguration(new InventoryConfiguration());
         modelBuilder.ApplyConfiguration(new OfferConfiguration());
+        modelBuilder.ApplyConfiguration(new EbayOrderConfiguration());
+        modelBuilder.ApplyConfiguration(new LineItemConfiguration());
 
     }
 }

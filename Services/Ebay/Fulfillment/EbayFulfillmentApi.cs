@@ -15,7 +15,7 @@ public class EbayFulfillmentApi
     /// <summary>
     /// Get orders that are not fulfilled yet
     /// </summary>
-    public async Task<List<EbayOrder>> GetPendingOrders(CancellationToken stoppingToken, string fulfillmentStatus = "NOT_STARTED|IN_PROGRESS")
+    public async Task<List<EbayOrderResponse>> GetPendingOrders(CancellationToken stoppingToken, string fulfillmentStatus = "NOT_STARTED|IN_PROGRESS")
     {
         var url = $"https://api.ebay.com/sell/fulfillment/v1/order?filter=orderfulfillmentstatus:{{{fulfillmentStatus}}}";
 
@@ -29,7 +29,7 @@ public class EbayFulfillmentApi
             throw new HttpRequestException($"Failed to fetch orders. Status: {response.StatusCode}. Response: {responseText}");}
 
         var json = JObject.Parse(responseText);
-        var orders = json["orders"].ToObject<List<EbayOrder>>();
+        var orders = json["orders"].ToObject<List<EbayOrderResponse>>();
 
         return orders;
     }
