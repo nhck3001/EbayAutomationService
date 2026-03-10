@@ -18,7 +18,7 @@ public class EbayOrderResponse
 
     public string GetAddressLine1 => Buyer?.BuyerRegistrationAddress?.ContactAddress?.AddressLine1;
 
-    public string GetGetAddressLine2 => Buyer?.BuyerRegistrationAddress?.ContactAddress?.AddressLine2;
+    public string GetAddressLine2 => Buyer?.BuyerRegistrationAddress?.ContactAddress?.AddressLine2;
 
     public string GetCity => Buyer?.BuyerRegistrationAddress?.ContactAddress?.City;
 

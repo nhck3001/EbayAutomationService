@@ -48,7 +48,7 @@ public class FetchOrderUseCase
                 BuyerUsername = order.Buyer.Username,
                 BuyerFullName = order.GetBuyerFullName,
                 AddressLine1 = order.GetAddressLine1,
-                AddressLine2 = order.GetGetAddressLine2,
+                AddressLine2 = order.GetAddressLine2,
                 City = order.GetCity,
                 State = order.GetStateOrProvince,
                 PostalCode = order.GetPostalCode,
@@ -61,6 +61,21 @@ public class FetchOrderUseCase
                 CreatedAt = now,
                 UpdatedAt = now
             };
+        var lineItems = new List<LineItem>();
+        foreach (var item in order.LineItems)
+        {
+            var lineItem = new LineItem
+            {
+                Order = ebayOrder,
+                LineItemId = item.LineItemId,
+                Sku = item.Sku,
+                Quantity = item.Quantity,
+                Status = LineItemStatus.Pending
+            };
+            lineItems.Add(lineItem);
+        }
+        ebayOrder.OrderItems = lineItems;
+
         await SaveSingleOrderAsync(ebayOrder, stoppingToken);
         // Save order
     }
@@ -77,9 +92,9 @@ public class FetchOrderUseCase
                 var exists = await appDbContext.EbayOrders.AnyAsync(o => o.EbayOrderId == order.EbayOrderId, stoppingToken);
                 if (!exists)
                 {
-
                     appDbContext.EbayOrders.Add(order);
                     await appDbContext.SaveChangesAsync(stoppingToken);
+
                     Log.Information($"Save Order Info {order.EbayOrderId} successfully");
                 }
                 else
