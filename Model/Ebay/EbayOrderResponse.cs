@@ -5,7 +5,7 @@ public class EbayOrderResponse
     public string OrderPaymentStatus { get; set; }
 
     public string OrderFulfillmentStatus { get; set; }
-    public DateTime PurchaseDate { get; set; }
+    public DateTime CreationDate { get; set; }
     public List<EbayLineItem> LineItems { get; set; }
     public EbayBuyer Buyer { get; set; }
         // Convenience accessors

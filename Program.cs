@@ -77,6 +77,7 @@ class Program
                 services.AddScoped<CrawlHelper>();
                 services.AddScoped<RefreshInventory>();
                 services.AddScoped<EbayFulfillmentApi>();
+                services.AddScoped<FetchOrderUseCase>();
                 services.AddHostedService<CrawlWorker>();
                 services.AddHostedService<CreateInventoryWorker>();
                 services.AddHostedService<CleanSkuWorker>();
@@ -149,14 +150,8 @@ class Program
                 case "test":
                     using (var scope = host.Services.CreateScope())
                     {
-                        var ebayFulfillmentApi = scope.ServiceProvider.GetRequiredService<EbayFulfillmentApi>();
-                        var pendingOrders = await ebayFulfillmentApi.GetPendingOrders(CancellationToken.None);
-                        foreach (var order in pendingOrders)
-                        {
-                            var orderId = order.OrderId;
-
-
-                        }
+                        var order = scope.ServiceProvider.GetRequiredService<FetchOrderUseCase>();
+                        await order.ProcessBatchAsync(CancellationToken.None);
                     }
                     break;
             }
