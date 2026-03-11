@@ -37,3 +37,9 @@ jobs:
           PAYMENT_POLICY: ${{ secrets.PAYMENT_POLICY }}
           RETURN_POLICY: ${{ secrets.RETURN_POLICY }}
           DATABASE_CONNECTION: ${{ secrets.DATABASE_CONNECTION }}
+
+      - name: Upload logs
+          uses: actions/upload-artifact@v4
+          with:
+            name: worker-logs
+            path: logs/
