@@ -28,3 +28,4 @@ jobs:
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
           EBAY_REFRESH_TOKEN: ${{ secrets.EBAY_REFRESH_TOKEN }}
           CJ_REFRESH_TOKEN: ${{ secrets.CJ_REFRESH_TOKEN }}
+          ConnectionStrings__DefaultConnection: ${{ secrets.DATABASE_CONNECTION }}
