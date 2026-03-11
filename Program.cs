@@ -155,6 +155,7 @@ class Program
                     using (var scope = host.Services.CreateScope())
                     {
                         Log.Information("Inside fetch order");
+                        Log.Information(Environment.GetEnvironmentVariable("CJ_REFRESH_TOKEN"));
                         var useCase = scope.ServiceProvider.GetRequiredService<FetchOrderUseCase>();
                         await useCase.ProcessBatchAsync(CancellationToken.None);
                     }
