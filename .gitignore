@@ -14,7 +14,7 @@ obj/
 .DS_Store
 
 # Logs
-*.log
+#*.log
 
 # TxtFile
 *.txt
