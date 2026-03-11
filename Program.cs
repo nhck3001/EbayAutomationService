@@ -143,17 +143,20 @@ class Program
                         await publishOfferUseCase.ProcessBatchAsync(CancellationToken.None);
                     }
                     break;
-                case "testhost":
-                    Log.Information("Testing host");
-                        await host.RunAsync();
 
-                    
-                    break;            
                 case "test":
                     using (var scope = host.Services.CreateScope())
                     {
                         var order = scope.ServiceProvider.GetRequiredService<FetchOrderUseCase>();
                         await order.ProcessBatchAsync(CancellationToken.None);
+                    }
+                    break;
+                    case "fetchOrder":
+                    using (var scope = host.Services.CreateScope())
+                    {
+                        Log.Information("Inside fetch order");
+                        var useCase = scope.ServiceProvider.GetRequiredService<FetchOrderUseCase>();
+                        await useCase.ProcessBatchAsync(CancellationToken.None);
                     }
                     break;
             }
