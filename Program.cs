@@ -18,6 +18,10 @@ class Program
 {
     static async Task Main(string[] args)
     {
+        var isGithub = Environment.GetEnvironmentVariable("GITHUB_ACTIONS") == "true";
+
+        var logPath = isGithub? "logs/fetchOrder.txt": "logs/log-.txt";
+
         // Create a global logger that will automatically log everything to a file on top of outputting to the console
         Log.Logger = new LoggerConfiguration().MinimumLevel.Information().WriteTo.Console().
         WriteTo.File(
@@ -155,7 +159,13 @@ class Program
                     case "fetchorder":
                     using (var scope = host.Services.CreateScope())
                     {
+                        Directory.CreateDirectory("logs");
 
+                        Log.Logger = new LoggerConfiguration()
+                            .MinimumLevel.Information()
+                            .WriteTo.Console()
+                            .WriteTo.File("logs/fetchOrder.txt")
+                            .CreateLogger();
                         var useCase = scope.ServiceProvider.GetRequiredService<FetchOrderUseCase>();
                         await useCase.ProcessBatchAsync(CancellationToken.None);
                     }
