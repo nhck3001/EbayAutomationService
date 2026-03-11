@@ -30,7 +30,7 @@ public class CJApiClient
         _httpClient.DefaultRequestHeaders.Remove("CJ-Access-Token");
         _httpClient.DefaultRequestHeaders.Add("CJ-Access-Token", token);
     }
-    private async Task<T> ExecuteWithRetryAsync<T>(Func<Task<T>> action,CancellationToken stoppingToken)
+    private async Task<T> ExecuteWithRetryAsync<T>(Func<Task<T>> action, CancellationToken stoppingToken)
     {
         const int maxRetries = 5;
 
@@ -38,7 +38,7 @@ public class CJApiClient
         {
             try
             {
-                return await action(    );
+                return await action();
             }
             catch (CjRateLimitException)
             {
@@ -73,7 +73,7 @@ public class CJApiClient
             if (doc.RootElement.TryGetProperty("code", out var codeEl))
             {
                 // First check daily limit
-                var code = codeEl.GetInt32();                
+                var code = codeEl.GetInt32();
                 // Then catch QPS Throw up to ExecuteWithRetryAsync
                 if (code == 1600200)
                 {
@@ -87,16 +87,16 @@ public class CJApiClient
                         }
                     }
                     // Assume it is rate limit exception for all other exception fo code 1600200
-                    throw new CjRateLimitException();    
+                    throw new CjRateLimitException();
                 }
             }
-            
+
             // Catch other exceptions
             if (!response.IsSuccessStatusCode)
                 throw new CjApiException((int)response.StatusCode, body);
 
             return JsonConvert.DeserializeObject<T>(body)!;
-        },stoppingToken);
+        }, stoppingToken);
     }
 
     // ---------- READ-ONLY ENDPOINTS ----------
@@ -104,7 +104,7 @@ public class CJApiClient
     /// <summary>
     /// Get full product detail by sku
     /// </summary>
-    public async Task<CjProductDetailResponse> GetProductDetailAsync(string sku,  CancellationToken stoppingToken, bool isProductSku = true)
+    public async Task<CjProductDetailResponse> GetProductDetailAsync(string sku, CancellationToken stoppingToken, bool isProductSku = true)
     {
         // Default is variantSku
         var endpoint = $"product/query?variantSku={sku}&countryCode=US";
@@ -114,13 +114,13 @@ public class CJApiClient
         }
         try
         {
-            var result = await GetAsync<CjProductDetailResponse>(endpoint,stoppingToken );
+            var result = await GetAsync<CjProductDetailResponse>(endpoint, stoppingToken);
             return result;
         }
         catch (CjDailyLimitException)
         {
             throw; // explicitly bubble up
-        } 
+        }
         // Product has been removed from cell. 
         catch (CjApiException ex)
         {
@@ -163,7 +163,7 @@ public class CJApiClient
                                                    $"addMarkStatus={addMarkStatus}&" +
                                                    $"size={size}&" +
                                                    "verifiedWarehouse=1&" +
-                                                   "startWarehouseInventory=20&"+
+                                                   "startWarehouseInventory=20&" +
                                                    timeFilter, stoppingToken
                                                    );
             return response;
@@ -177,19 +177,31 @@ public class CJApiClient
         catch (CjDailyLimitException)
         {
             throw; // explicitly bubble up
-        }    
-}
+        }
+    }
 
     public async Task<CjStockBySkuResponse> GetStockBySkuAsync(string variantSku, CancellationToken stoppingToken)
     {
         try
         {
-        return await GetAsync<CjStockBySkuResponse>($"product/stock/queryBySku?sku={variantSku}",stoppingToken);
-            
+            return await GetAsync<CjStockBySkuResponse>($"product/stock/queryBySku?sku={variantSku}", stoppingToken);
+
         }
         catch (CjDailyLimitException)
         {
             throw; // explicitly bubble up
-        } 
+        }
     }
+    //public async Task<string> CreateOrderAsync(EbayOrder request, CancellationToken ct)
+    //{
+    //    try
+    //    {
+    //        return await GetAsync<CjStockBySkuResponse>($"product/stock/queryBySku?sku={variantSku}", stoppingToken);
+//
+    //    }
+    //    catch (CjDailyLimitException)
+    //    {
+    //        throw; // explicitly bubble up
+    //    }
+    //}
 }
