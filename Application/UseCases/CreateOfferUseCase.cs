@@ -43,8 +43,8 @@ public class CreateOfferUseCase
         }
         foreach (var inventoryId in inventoryItemIds)
         {
-            await ProcessSingle(inventoryId,stoppingToken);
-        }    
+            await ProcessSingle(inventoryId, stoppingToken);
+        }
     }
     private async Task ProcessSingle(int inventoryId, CancellationToken stoppingToken)
     {
@@ -71,7 +71,7 @@ public class CreateOfferUseCase
                 if (result.Outcome == OperationOutcome.Success || result.Outcome == OperationOutcome.AlreadyExists)
                 {
                     inventoryItem.Status = InventoryStatus.OfferCreated;
-                    var exists = await appDbContext.OfferItems.AnyAsync(o => o.InventoryId == inventoryItem.Id,stoppingToken);
+                    var exists = await appDbContext.OfferItems.AnyAsync(o => o.InventoryId == inventoryItem.Id, stoppingToken);
                     if (!exists)
                     {
                         var offerEntity = new OfferItem
@@ -82,7 +82,7 @@ public class CreateOfferUseCase
                             Ebay_Category_Id = inventoryItem.sku.Ebay_Category_Id,
                             Status = OfferStatus.Pending,
                             CreatedAt = DateTime.UtcNow,
-                            SellPrice = inventoryItem.sku.SellPrice
+                            SellPrice = CalculateProfitablePrice(inventoryItem.sku.SellPrice)
                         };
                         appDbContext.OfferItems.Add(offerEntity);
                     }
@@ -109,5 +109,9 @@ public class CreateOfferUseCase
                 throw;
             }
         }
+    }
+    private static decimal CalculateProfitablePrice(decimal sellPrice)
+    {
+        return sellPrice * 13.25m / 100m + 0.30m;
     }
 }
