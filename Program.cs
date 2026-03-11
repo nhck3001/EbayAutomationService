@@ -151,7 +151,7 @@ class Program
                         await order.ProcessBatchAsync(CancellationToken.None);
                     }
                     break;
-                    case "fetchOrder":
+                    case "fetchorder":
                     using (var scope = host.Services.CreateScope())
                     {
                         Log.Information("Inside fetch order");
