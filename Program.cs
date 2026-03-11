@@ -152,8 +152,8 @@ class Program
                 case "test":
                     using (var scope = host.Services.CreateScope())
                     {
-                        var order = scope.ServiceProvider.GetRequiredService<FetchOrderUseCase>();
-                        await order.ProcessBatchAsync(CancellationToken.None);
+                        var ebayCategoryService = scope.ServiceProvider.GetRequiredService<EbayCategoryService>();
+                        await ebayCategoryService.
                     }
                     break;
                     case "fetchorder":
