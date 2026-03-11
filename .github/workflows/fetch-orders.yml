@@ -3,7 +3,7 @@ name: Fetch eBay Orders
 on:
   schedule:
     #- cron: '0 */2 * * *'   # every 2 hours
-    - cron: '*/5 * * * *'   # every 30 minutes
+    - cron: '*/6 * * * *'   # every 30 minutes
 
   workflow_dispatch:        # allows manual run
 
