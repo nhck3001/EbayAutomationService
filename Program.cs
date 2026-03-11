@@ -159,6 +159,13 @@ class Program
                     case "fetchorder":
                     using (var scope = host.Services.CreateScope())
                     {
+                        Log.Logger = new LoggerConfiguration().MinimumLevel.Information().WriteTo.Console().
+                        WriteTo.File(
+                            "logs/fetchOrder.txt",
+                            rollingInterval: RollingInterval.Day,
+                            retainedFileCountLimit: 7,
+                            outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}")
+                        .CreateLogger();
                         var useCase = scope.ServiceProvider.GetRequiredService<FetchOrderUseCase>();
                         await useCase.ProcessBatchAsync(CancellationToken.None);
                     }
