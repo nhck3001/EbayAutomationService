@@ -83,6 +83,8 @@ class Program
                 services.AddHostedService<CleanSkuWorker>();
                 services.AddHostedService<CreateOfferWorker>();
                 services.AddHostedService<PublishOfferWorker>();
+                services.AddHostedService<FetchOrderWorker>();
+
 
             })
             .Build();

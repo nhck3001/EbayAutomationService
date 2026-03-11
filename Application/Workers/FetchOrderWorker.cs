@@ -1,0 +1,44 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Serilog;
+
+public class FetchOrderWorker : BackgroundService
+{
+    private readonly IServiceScopeFactory _scopeFactory;
+
+    public FetchOrderWorker(IServiceScopeFactory scopeFactory)
+    {
+        _scopeFactory = scopeFactory;
+    }
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        Log.Information("FetchOrderWorker started.");
+
+        try
+        {
+            // Worker will execute every 10 seconds
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                using (var scope = _scopeFactory.CreateScope())
+                { 
+                    var processor = scope.ServiceProvider.GetRequiredService<PublishOfferUseCase>();
+                    await processor.ProcessBatchAsync(stoppingToken);
+                }
+                await Task.Delay(TimeSpan.FromSeconds(120), stoppingToken);
+            }
+        }
+        // Allow Ctrl+c to shut down gracefully
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            Log.Information("FetchOrderWorker worker cancelled.");
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Unhandled exception in FetchOrderWorker.");
+        }
+        finally
+        {
+            Log.Information("FetchOrderWorker stopping.");
+        }
+    }
+}
