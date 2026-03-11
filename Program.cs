@@ -44,7 +44,7 @@ class Program
                 // Add a custom service DatabaseTestService.
                 // Whenever a DatabaseTestService object is needed, automatically create it
                 // Load environment variables
-                Env.Load("/Users/nhck3001/Documents/GitHub/EbayAutomationService/file.env");
+                Env.Load();
                 // Register all  services with DI container
                 // Services will look for dependencies and inject them automatically
                 // For example, will inject CjAuthService to CjTokenManager automatically
