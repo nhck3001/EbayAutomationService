@@ -46,9 +46,6 @@ class Program
                 {
                     options.UseNpgsql(Environment.GetEnvironmentVariable("DATABASE_CONNECTION"));
                 });
-                Console.WriteLine("asdas " + Environment.GetEnvironmentVariable("DATABASE_CONNECTION"));
-                Console.WriteLine("asdas " + Environment.GetEnvironmentVariable("CJ_REFRESH_TOKEN"));
-
                 // Register all  services with DI container
                 // Services will look for dependencies and inject them automatically
                 // For example, will inject CjAuthService to CjTokenManager automatically
@@ -158,8 +155,7 @@ class Program
                     case "fetchorder":
                     using (var scope = host.Services.CreateScope())
                     {
-                        Log.Information("Inside fetch order");
-                        Log.Information(Environment.GetEnvironmentVariable("CJ_REFRESH_TOKEN"));
+
                         var useCase = scope.ServiceProvider.GetRequiredService<FetchOrderUseCase>();
                         await useCase.ProcessBatchAsync(CancellationToken.None);
                     }
