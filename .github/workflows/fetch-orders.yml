@@ -23,3 +23,8 @@ jobs:
 
       - name: Run FetchOrderWorker
         run: dotnet run --project EbayAutomationService.csproj -- fetchOrder
+        env:
+          APP_ID: ${{ secrets.APP_ID }}
+          CLIENT_SECRET: ${{ secrets.CLIENT_SECRET }}
+          EBAY_REFRESH_TOKEN: ${{ secrets.EBAY_REFRESH_TOKEN }}
+          CJ_REFRESH_TOKEN: ${{ secrets.CJ_REFRESH_TOKEN }}
