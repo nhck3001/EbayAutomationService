@@ -37,14 +37,18 @@ class Program
 
                 // Register the database context
                 // Whenever AppDbContext is needed, created using this connection string 'context.Configuration.GetConnectionString("DefaultConnection")'
-                services.AddDbContext<AppDbContext>(options =>
-                {
-                    options.UseNpgsql(context.Configuration.GetConnectionString("DefaultConnection"));
-                });
+
                 // Add a custom service DatabaseTestService.
                 // Whenever a DatabaseTestService object is needed, automatically create it
                 // Load environment variables
                 Env.Load();
+                     services.AddDbContext<AppDbContext>(options =>
+                {
+                    options.UseNpgsql(Environment.GetEnvironmentVariable("DATABASE_CONNECTION"));
+                });
+                Console.WriteLine("asdas " + Environment.GetEnvironmentVariable("DATABASE_CONNECTION"));
+                Console.WriteLine("asdas " + Environment.GetEnvironmentVariable("CJ_REFRESH_TOKEN"));
+
                 // Register all  services with DI container
                 // Services will look for dependencies and inject them automatically
                 // For example, will inject CjAuthService to CjTokenManager automatically
