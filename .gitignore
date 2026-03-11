@@ -19,4 +19,5 @@ obj/
 # TxtFile
 *.txt
 
-
+# Do not ignore .gitkeep inside logs. Used to keep an empty folder
+!logs/.gitkeep
